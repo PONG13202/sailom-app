@@ -1,104 +1,88 @@
-"use client";
-// sailom\app\backoffice\user\page.tsx
+'use client';
 
-import React, { useEffect, useState } from "react";
-import axios from "axios";
-import { useRouter } from "next/navigation";
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Swal from "sweetalert2";
-import { config } from "../../config";
-import { ColumnDef } from "@tanstack/react-table";
-import { DataTable } from "../../components/ui/Datable";
+import axios from "axios";
+import { config } from '../../config';
 
-
-
-
-type User = {
-  user_id: number;
-  user_fname: string;
-  user_lname: string;
-  user_email: string;
-  user_phone: string;
-  user_img: string;
-  user_status: number;
-};
-
-const columns: ColumnDef<User>[] = [
-  { accessorKey: "user_id", header: "ID" },
-  { accessorKey: "user_fname", header: "ชื่อ" },
-  { accessorKey: "user_lname", header: "นามสกุล" },
-  { accessorKey: "user_email", header: "Email" },
-  { accessorKey: "user_phone", header: "เบอร์โทร" },
-  {
-    accessorKey: "user_img",
-    header: "รูป",
-    cell: ({ getValue }) => {
-      const imgUrl = getValue<string>();
-      return imgUrl ? (
-        <img src={imgUrl} alt="User" className="h-10 w-10 rounded-full object-cover" loading="lazy" onError={(e) => {
-            e.currentTarget.src = "user_default.jpeg";
-          }} />
-      ) : (
-        <span>ไม่มีรูป</span>
-      );
-    },
-  },
-  {
-    accessorKey: "user_status",
-    header: "สถานะ",
-    cell: ({ getValue }) => {
-      const status = getValue<number>();
-      return status === 1 ? "ปกติ" : "ระงับ";
-    },
-  },
-];
-
-export default function UserPage() {
-  const [users, setUsers] = useState<User[]>([]);
+export default function User() {
   const router = useRouter();
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-    useEffect(() => {
-      const token = localStorage.getItem('token');
-      if (!token) {
-         Swal.fire({
-            icon: 'error',
-            title: 'หมดเวลาการใช้งาน',
-            text: 'กรุณาเข้าสู่ระบบใหม่อีกครั้ง',
-            showConfirmButton: false,
-            timer: 2000
-          })
-         router.replace('/');
-      }
-    }, [router]);
 
   const fetchData = async () => {
     try {
       const res = await axios.get(`${config.apiUrl}/all_user`);
       if (res.status === 200) {
-        // Optional: Map data if API field names differ
-        const mappedData = res.data.map((user: any) => ({
-          user_id: user.user_id,
-          user_fname: user.First_Name || user.user_fname || "",
-          user_lname: user.Last_Name || user.user_lname || "",
-          user_email: user.Email || user.user_email || "",
-          user_phone: user.Phone || user.user_phone || "",
-          user_img: user.Image || user.user_img || "",
-          user_status: user.Status || user.user_status || 0,
-        }));
-        setUsers(mappedData);
+        return res.data;
       }
     } catch (error) {
-      console.error("Error fetching data:", error);
+      console.error('Error fetching data:', error);
+      Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถโหลดข้อมูลผู้ใช้ได้', 'error');
     }
   };
+
+  useEffect(() => {
+    let table : any;
+    const loadData = async () => {
+      const data = await fetchData();
+      if (data) {
+        table = $('#userTable').DataTable();
+        table.clear();
+        data.forEach((user: any) => {
+
+      const profileImg = user.user_img && user.user_img.trim() !== '' ? user.user_img: '/user_default.jpeg';
+
+          table.row.add([
+            user.user_id,
+            user.user_fname, // สมมติว่าไม่มี user_username ในโค้ดเดิม
+            user.user_fname,
+            user.user_lname,
+            user.user_email,
+            user.user_phone,
+             `<img src="${profileImg}" alt="Profile" width="50" height="50" style="object-fit: cover; border-radius: 50%;" />`,
+            user.user_status
+          ]);
+        });
+        table.draw();
+      }
+    };
+
+    // Initialize DataTable on first render
+    $(document).ready(function () {
+      table = $('#userTable').DataTable();
+      loadData();
+    });
+
+    // Cleanup function to destroy DataTable on unmount
+    return () => {
+      if (table) {
+        table.destroy();
+      }
+    };
+  }, []);
 
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold mb-4">รายชื่อผู้ใช้</h2>
-      <DataTable columns={columns} data={users} />
+      <div className="overflow-x-auto">
+        <table id="userTable" className="display w-full text-sm text-left">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Username</th>
+              <th>ชื่อ</th>
+              <th>นามสกุล</th>
+              <th>Email</th>
+              <th>เบอร์โทร</th>
+              <th>รูปภาพ</th>
+              <th>สถานะ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {/* DataTables will populate this */}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

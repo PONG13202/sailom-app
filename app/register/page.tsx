@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { config } from "../config";
-import Swal from 'sweetalert2'
+import Swal from "sweetalert2";
 
 export default function RegisterPage() {
   const [username, setUsername] = useState("");
@@ -22,19 +22,20 @@ export default function RegisterPage() {
 
   const router = useRouter();
 
-      useEffect(() => {
-    const token = localStorage.getItem('token');
+  useEffect(() => {
+    const token = localStorage.getItem("token");
     if (token) {
-      router.replace('backoffice/dashboard'); // ถ้ามี token ไม่ให้เข้า login
-    } 
+      router.replace("backoffice/dashboard");
+    }
   }, [router]);
 
-  // ✅ ตรวจสอบชื่อผู้ใช้แบบเรียลไทม์
   useEffect(() => {
     const timeout = setTimeout(async () => {
       if (username.trim()) {
         try {
-          const res = await axios.get(`${config.apiUrl}/check_username?user_name=${encodeURIComponent(username)}`);
+          const res = await axios.get(
+            `${config.apiUrl}/check_username?user_name=${encodeURIComponent(username)}`
+          );
           setUsernameStatus(res.data.available ? "" : "ชื่อผู้ใช้นี้ถูกใช้ไปแล้ว");
         } catch {
           setUsernameStatus("ไม่สามารถตรวจสอบชื่อผู้ใช้ได้");
@@ -46,12 +47,13 @@ export default function RegisterPage() {
     return () => clearTimeout(timeout);
   }, [username]);
 
-  // ✅ ตรวจสอบอีเมลแบบเรียลไทม์
   useEffect(() => {
     const timeout = setTimeout(async () => {
       if (email.trim()) {
         try {
-          const res = await axios.get(`${config.apiUrl}/check_email?user_email=${encodeURIComponent(email)}`);
+          const res = await axios.get(
+            `${config.apiUrl}/check_email?user_email=${encodeURIComponent(email)}`
+          );
           setEmailStatus(res.data.available ? "" : "อีเมลนี้ถูกใช้ไปแล้ว");
         } catch {
           setEmailStatus("ไม่สามารถตรวจสอบอีเมลได้");
@@ -63,64 +65,65 @@ export default function RegisterPage() {
     return () => clearTimeout(timeout);
   }, [email]);
 
-const handleRegister = async () => {
-  setFormError("");
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault(); // สำคัญ! ป้องกันการ reload หน้า
 
-  if (!username || !password || !fname || !lname || !email) {
-    setFormError("กรุณากรอกข้อมูลให้ครบทุกช่อง");
-    return;
-  }
+    setFormError("");
 
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-    setFormError("กรุณากรอกอีเมลให้ถูกต้อง");
-    return;
-  }
-
-  if (password.length < 8) {
-    setFormError("รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร");
-    return;
-  }
-
-  if (usernameStatus || emailStatus) {
-    setFormError("กรุณาแก้ไขข้อมูลที่ไม่ถูกต้องก่อนลงทะเบียน");
-    return;
-  }
-
-  setIsLoading(true);
-  try {
-    const payload = {
-      user_name: username,
-      user_pass: password,
-      user_fname: fname,
-      user_lname: lname,
-      user_email: email,
-    };
-    const response = await axios.post(`${config.apiUrl}/register`, payload);
-    if (response.status === 200 || response.status === 201) {
-      await Swal.fire({
-        title: "ลงทะเบียนสำเร็จ",
-        text: "ยินดีต้อนรับ! คุณจะถูกนำไปยังหน้าแรก",
-        icon: "success",
-        timer: 1500,
-        showConfirmButton: false,
-      });
-      router.push("/");
+    if (!username || !password || !fname || !lname || !email) {
+      setFormError("กรุณากรอกข้อมูลให้ครบทุกช่อง");
+      return;
     }
-  } catch (err: any) {
-    const message = err.response?.data?.message || "ไม่สามารถลงทะเบียนได้";
-    setFormError(message);
 
-    Swal.fire({
-      icon: "error",
-      title: "เกิดข้อผิดพลาด",
-      text: message,
-    });
-  } finally {
-    setIsLoading(false);
-  }
-};
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setFormError("กรุณากรอกอีเมลให้ถูกต้อง");
+      return;
+    }
 
+    if (password.length < 8) {
+      setFormError("รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร");
+      return;
+    }
+
+    if (usernameStatus || emailStatus) {
+      setFormError("กรุณาแก้ไขข้อมูลที่ไม่ถูกต้องก่อนลงทะเบียน");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const payload = {
+        user_name: username,
+        user_pass: password,
+        user_fname: fname,
+        user_lname: lname,
+        user_email: email,
+      };
+      const response = await axios.post(`${config.apiUrl}/register`, payload);
+      if (response.status === 200 || response.status === 201) {
+        await Swal.fire({
+          title: "ลงทะเบียนสำเร็จ",
+          text: "ยินดีต้อนรับ! คุณจะถูกนำไปยังหน้าแรก",
+          icon: "success",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+        router.push("/");
+      }
+    } catch (err: any) {
+      const message = err.response?.data?.message || "ไม่สามารถลงทะเบียนได้";
+      setFormError(message);
+
+      Swal.fire({
+        icon: "error",
+        title: "เกิดข้อผิดพลาด",
+        text: message,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100 font-prompt">
@@ -128,65 +131,65 @@ const handleRegister = async () => {
         <h1 className="text-2xl font-bold text-center text-blue-600">ลงทะเบียน</h1>
         <p className="text-center text-gray-600">กรุณากรอกข้อมูลเพื่อสร้างบัญชีใหม่</p>
 
-        <div className="space-y-4">
+        <form className="space-y-4" onSubmit={handleRegister}>
           <div>
             <label className="block text-sm font-medium text-gray-700">Username</label>
             <Input
+              className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
               type="text"
               placeholder="ชื่อผู้ใช้"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
-              className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
             />
             {usernameStatus && <p className="text-sm text-red-500 mt-1">{usernameStatus}</p>}
           </div>
 
           <div>
-          <label className="block text-sm font-medium text-gray-700">Password</label>
-          <Input
-            type="password"
-            placeholder="รหัสผ่าน"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
-          />
+            <label className="block text-sm font-medium text-gray-700">Password</label>
+            <Input
+              className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
+              type="password"
+              placeholder="รหัสผ่าน"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
           </div>
 
           <div>
-          <label className="block text-sm font-medium text-gray-700">First Name</label>
-          <Input
-            type="text"
-            placeholder="ชื่อจริง"
-            value={fname}
-            onChange={(e) => setFname(e.target.value)}
-            required
-            className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
-          />
+            <label className="block text-sm font-medium text-gray-700">First Name</label>
+            <Input
+              className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
+              type="text"
+              placeholder="ชื่อจริง"
+              value={fname}
+              onChange={(e) => setFname(e.target.value)}
+              required
+            />
           </div>
 
           <div>
-          <label className="block text-sm font-medium text-gray-700">Last Name</label>
-          <Input
-            type="text"
-            placeholder="นามสกุล"
-            value={lname}
-            onChange={(e) => setLname(e.target.value)}
-            required
-            className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
-          />
+            <label className="block text-sm font-medium text-gray-700">Last Name</label>
+            <Input
+              className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
+              type="text"
+              placeholder="นามสกุล"
+              value={lname}
+              onChange={(e) => setLname(e.target.value)}
+              required
+            />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700">Email</label>
             <Input
+              className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
               type="email"
               placeholder="อีเมล"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
             />
             {emailStatus && <p className="text-sm text-red-500 mt-1">{emailStatus}</p>}
           </div>
@@ -195,7 +198,7 @@ const handleRegister = async () => {
 
           <Button
             className="w-full text-white bg-blue-500 hover:bg-blue-600"
-            onClick={handleRegister}
+            type="submit"
             disabled={
               isLoading ||
               !username ||
@@ -209,7 +212,7 @@ const handleRegister = async () => {
           >
             {isLoading ? "กำลังลงทะเบียน..." : "ลงทะเบียน"}
           </Button>
-        </div>
+        </form>
 
         <p className="text-center text-sm text-gray-600">
           มีบัญชีอยู่แล้ว?{" "}
