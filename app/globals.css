@@ -19,3 +19,38 @@ body {
   color: #1a202c; /* เทียบเท่า text-gray-900 */
   font-family: 'Prompt', sans-serif;
 }
+/* sailom\app\globals.css */
+@media (max-width: 640px) {
+  .responsive-table {
+    display: block;
+  }
+  .responsive-table table {
+    display: block;
+  }
+  .responsive-table thead {
+    display: none; /* Hide headers on mobile */
+  }
+  .responsive-table tbody,
+  .responsive-table tr {
+    display: block;
+  }
+  .responsive-table tr {
+    border: 1px solid #e5e7eb;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    background: #fff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  .responsive-table td {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border: none;
+  }
+  .responsive-table td::before {
+    content: attr(data-label);
+    font-weight: bold;
+    width: 50%;
+  }
+}
