@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Prompt } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 import ClientProviders from "./ClientProviders";
 
@@ -40,18 +39,6 @@ export default function RootLayout({
           integrity="sha512-Evv84Mr4kqVGRNSgIGL/F/aIDqQb7xQ2vcrdIwxfjThSH8CSR7PBEakCr51Ck+w+/U6swU2Im1vVX0SVk9ABhg=="
           crossOrigin="anonymous"
           referrerPolicy="no-referrer"
-        />
-        <link
-          rel="stylesheet"
-          href="https://cdn.datatables.net/2.3.1/css/dataTables.dataTables.min.css"
-        />
-        <Script
-          src="https://code.jquery.com/jquery-3.7.1.min.js"
-          strategy="beforeInteractive"
-        />
-        <Script
-          src="https://cdn.datatables.net/2.3.1/js/dataTables.min.js"
-          strategy="beforeInteractive"
         />
       </head>
       <body
