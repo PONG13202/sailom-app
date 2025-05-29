@@ -1,11 +1,48 @@
-"use client";
-
+'use client'
+import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import Sidebar from "../backoffice/sidebar";
+import axios from "axios";
+import { config } from "../config";
+import Swal from "sweetalert2";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const router = useRouter();
+  
+  const [user, setUser] = useState<{
+    user_fname: string;
+    user_lname: string;
+  }>({ 
+    user_fname: "", 
+    user_lname: "" });
+
+useEffect(() => {
+  const usernames = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${config.apiUrl}/info`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      setUser(res.data);
+    } catch (error: any) {
+      Swal.fire({
+        icon: "error",
+        title: "หมดเวลาการใช้งาน",
+        text: "กรุณาเข้าสู่ระบบใหม่อีกครั้ง",
+        showConfirmButton: false,
+        timer: 2000,
+      });
+      router.replace('/');
+    }
+  };
+
+  usernames(); // เรียกใช้ในนี้เลย
+}, [router]);
+
 
   const handleBurgerClick = () => {
     if (window.innerWidth >= 768) {
@@ -65,8 +102,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </svg>
           </button>
           <h1 className="ml-2 text-xl font-semibold">Dashboard</h1>
+          <div className="text-sm md:text-base absolute right-4">
+            ยินดีต้อนรับ,{" "}
+            <span className="font-bold">
+              {user.user_fname}
+              {user.user_lname}
+            </span>
+          </div>
         </header>
-
         <main className="flex-1 pt-16 p-4 ">{children}</main>
       </div>
     </div>
