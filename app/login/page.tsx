@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { GoogleLogin, CredentialResponse } from "@react-oauth/google";
+import ProfileCompletionModal from "../components/ui/LoginModal";
 import { config } from "../config";
 
 export default function LoginPage() {
@@ -18,29 +19,44 @@ export default function LoginPage() {
     user_name: "",
     user_pass: "",
   });
-const isTokenExpired = (token: string | null): boolean => {
-  if (!token) return true;
-  try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    const expiry = payload.exp * 1000; // แปลงเป็น milliseconds
-    return Date.now() > expiry;
-  } catch {
-    return true; // ถ้า decode ไม่ได้ แสดงว่า token ไม่ถูกต้องหรือหมดอายุ
-  }
-};
+
+  const [profileForm, setProfileForm] = useState({
+    user_name: "",
+    user_pass: "",
+    user_fname: "",
+    user_lname: "",
+    user_email: "",
+    user_phone: "",
+  });
+  const [missingFields, setMissingFields] = useState<string[]>([]);
+  const [openModal, setOpenModal] = useState(false);
+
+  const isTokenExpired = (token: string | null): boolean => {
+    if (!token) return true;
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      const expiry = payload.exp * 1000;
+      return Date.now() > expiry;
+    } catch {
+      return true;
+    }
+  };
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-
     if (token && !isTokenExpired(token)) {
       router.replace("/backoffice/dashboard");
     } else {
-      localStorage.removeItem("token"); // สำคัญ! เคลียร์ token ที่หมดอายุ
+      localStorage.removeItem("token");
     }
   }, [router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setProfileForm({ ...profileForm, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -79,23 +95,92 @@ const isTokenExpired = (token: string | null): boolean => {
           token,
         });
 
+        console.log("Google login response:", res.data);
+
         if (res.status === 200) {
-          localStorage.setItem("token", res.data.token);
-          await Swal.fire({
-            icon: "success",
-            title: "เข้าสู่ระบบด้วย Google สำเร็จ",
-            showConfirmButton: false,
-            timer: 1500,
-          });
-          router.push("/backoffice/dashboard");
+          if (res.data.incompleteProfile) {
+            setMissingFields(res.data.missingFields);
+            setProfileForm({
+              user_name: res.data.user?.user_name ?? "",
+              user_pass: "",
+              user_fname:
+                res.data.user?.user_fname ??
+                res.data.googleUser?.first_name ??
+                "",
+              user_lname:
+                res.data.user?.user_lname ??
+                res.data.googleUser?.last_name ??
+                "",
+              user_email:
+                res.data.user?.user_email ?? res.data.googleUser?.email ?? "",
+              user_phone: res.data.user?.user_phone ?? "",
+            });
+            localStorage.setItem("tempToken", res.data.tempToken);
+            setOpenModal(true);
+          } else {
+            localStorage.setItem("token", res.data.token);
+            await Swal.fire({
+              icon: "success",
+              title: "เข้าสู่ระบบด้วย Google สำเร็จ",
+              showConfirmButton: false,
+              timer: 1500,
+            });
+            router.push("/backoffice/dashboard");
+          }
         }
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      console.error("Google login failed:", error);
       Swal.fire({
         icon: "error",
         title: "เข้าสู่ระบบด้วย Google ล้มเหลว",
         showConfirmButton: false,
         timer: 2000,
+      });
+      localStorage.removeItem("tempToken");
+      localStorage.removeItem("token");
+    }
+  };
+
+  const handleProfileSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const token =
+        localStorage.getItem("tempToken") || localStorage.getItem("token");
+      const res = await axios.post(
+        `${config.apiUrl}/complete_profile`,
+        profileForm,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`, // เพิ่ม header Authorization
+          },
+        }
+      );
+      if (res.status === 200) {
+        localStorage.setItem("token", res.data.token); // เก็บ token ใหม่
+        localStorage.removeItem("tempToken"); // ลบ tempToken
+        await Swal.fire({
+          icon: "success",
+          title: "เพิ่มข้อมูลสำเร็จ",
+          showConfirmButton: false,
+          timer: 1500,
+        });
+        setOpenModal(false);
+        router.push("/backoffice/dashboard");
+      } else {
+        Swal.fire({
+          icon: "error",
+          title: "เกิดข้อผิดพลาด",
+          text: res.data.message || "ไม่สามารถบันทึกข้อมูลได้",
+        });
+      }
+    } catch (err: any) {
+      Swal.fire({
+        icon: "error",
+        title: "เกิดข้อผิดพลาด",
+        showConfirmButton: false,
+        timer: 2000,
+        text: err.response?.data?.message || "เกิดข้อผิดพลาดในการอัปเดตข้อมูล",
       });
     }
   };
@@ -117,6 +202,7 @@ const isTokenExpired = (token: string | null): boolean => {
               <Input
                 type="text"
                 name="user_name"
+                value={form.user_name}
                 onChange={handleChange}
                 placeholder="ชื่อผู้ใช้"
                 required
@@ -130,6 +216,7 @@ const isTokenExpired = (token: string | null): boolean => {
               <Input
                 type="password"
                 name="user_pass"
+                value={form.user_pass}
                 onChange={handleChange}
                 placeholder="รหัสผ่าน"
                 required
@@ -161,6 +248,15 @@ const isTokenExpired = (token: string | null): boolean => {
           </p>
         </CardContent>
       </Card>
+
+      <ProfileCompletionModal
+        open={openModal}
+        onOpenChange={setOpenModal}
+        missingFields={missingFields}
+        profileForm={profileForm}
+        onProfileChange={handleProfileChange}
+        onProfileSubmit={handleProfileSubmit}
+      />
     </div>
   );
 }

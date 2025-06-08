@@ -15,10 +15,12 @@ export default function RegisterPage() {
   const [fname, setFname] = useState("");
   const [lname, setLname] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState("");
   const [emailStatus, setEmailStatus] = useState("");
   const [formError, setFormError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
 
   const router = useRouter();
 
@@ -34,9 +36,13 @@ export default function RegisterPage() {
       if (username.trim()) {
         try {
           const res = await axios.get(
-            `${config.apiUrl}/check_username?user_name=${encodeURIComponent(username)}`
+            `${config.apiUrl}/check_username?user_name=${encodeURIComponent(
+              username
+            )}`
           );
-          setUsernameStatus(res.data.available ? "" : "ชื่อผู้ใช้นี้ถูกใช้ไปแล้ว");
+          setUsernameStatus(
+            res.data.available ? "" : "ชื่อผู้ใช้นี้ถูกใช้ไปแล้ว"
+          );
         } catch {
           setUsernameStatus("ไม่สามารถตรวจสอบชื่อผู้ใช้ได้");
         }
@@ -52,7 +58,9 @@ export default function RegisterPage() {
       if (email.trim()) {
         try {
           const res = await axios.get(
-            `${config.apiUrl}/check_email?user_email=${encodeURIComponent(email)}`
+            `${config.apiUrl}/check_email?user_email=${encodeURIComponent(
+              email
+            )}`
           );
           setEmailStatus(res.data.available ? "" : "อีเมลนี้ถูกใช้ไปแล้ว");
         } catch {
@@ -81,8 +89,8 @@ export default function RegisterPage() {
       return;
     }
 
-    if (password.length < 8) {
-      setFormError("รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร");
+    if (password.length < 6) {
+      setFormError("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
       return;
     }
 
@@ -99,6 +107,7 @@ export default function RegisterPage() {
         user_fname: fname,
         user_lname: lname,
         user_email: email,
+        user_phone: phone,
       };
       const response = await axios.post(`${config.apiUrl}/register`, payload);
       if (response.status === 200 || response.status === 201) {
@@ -128,12 +137,18 @@ export default function RegisterPage() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100 font-prompt">
       <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
-        <h1 className="text-2xl font-bold text-center text-blue-600">ลงทะเบียน</h1>
-        <p className="text-center text-gray-600">กรุณากรอกข้อมูลเพื่อสร้างบัญชีใหม่</p>
+        <h1 className="text-2xl font-bold text-center text-blue-600">
+          ลงทะเบียน
+        </h1>
+        <p className="text-center text-gray-600">
+          กรุณากรอกข้อมูลเพื่อสร้างบัญชีใหม่
+        </p>
 
         <form className="space-y-4" onSubmit={handleRegister}>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Username</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Username
+            </label>
             <Input
               className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
               type="text"
@@ -142,23 +157,40 @@ export default function RegisterPage() {
               onChange={(e) => setUsername(e.target.value)}
               required
             />
-            {usernameStatus && <p className="text-sm text-red-500 mt-1">{usernameStatus}</p>}
+            {usernameStatus && (
+              <p className="text-sm text-red-500 mt-1">{usernameStatus}</p>
+            )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Password</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Password
+            </label>
             <Input
               className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
               type="password"
               placeholder="รหัสผ่าน"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                setPassword(value);
+                if (value.length < 6) {
+                  setPasswordError("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
+                } else {
+                  setPasswordError("");
+                }
+              }}
               required
             />
+            {passwordError && (
+              <p className="text-sm text-red-500 mt-1">{passwordError}</p>
+            )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">First Name</label>
+            <label className="block text-sm font-medium text-gray-700">
+              First Name
+            </label>
             <Input
               className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
               type="text"
@@ -170,7 +202,9 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Last Name</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Last Name
+            </label>
             <Input
               className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
               type="text"
@@ -182,7 +216,9 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Email</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Email
+            </label>
             <Input
               className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
               type="email"
@@ -191,10 +227,27 @@ export default function RegisterPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
             />
-            {emailStatus && <p className="text-sm text-red-500 mt-1">{emailStatus}</p>}
+            {emailStatus && (
+              <p className="text-sm text-red-500 mt-1">{emailStatus}</p>
+            )}
           </div>
 
           {formError && <p className="text-sm text-red-600">{formError}</p>}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Tell
+            </label>
+            <Input
+              className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
+              type="tel"
+              pattern="[0-9]{10}"
+              maxLength={10}
+              placeholder="เบอร์โทรศัพท์"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ""))}
+            />
+          </div>
 
           <Button
             className="w-full text-white bg-blue-500 hover:bg-blue-600"

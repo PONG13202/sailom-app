@@ -1,4 +1,4 @@
-'use client'
+"use client";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import Sidebar from "../backoffice/sidebar";
@@ -10,39 +10,41 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const router = useRouter();
-  
+
   const [user, setUser] = useState<{
     user_fname: string;
     user_lname: string;
-  }>({ 
-    user_fname: "", 
-    user_lname: "" });
+  }>({
+    user_fname: "",
+    user_lname: "",
+  });
 
-useEffect(() => {
-  const usernames = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await axios.get(`${config.apiUrl}/info`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      setUser(res.data);
-    } catch (error: any) {
-      Swal.fire({
-        icon: "error",
-        title: "หมดเวลาการใช้งาน",
-        text: "กรุณาเข้าสู่ระบบใหม่อีกครั้ง",
-        showConfirmButton: false,
-        timer: 2000,
-      });
-      router.replace('/');
-    }
-  };
+  useEffect(() => {
+    const usernames = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await axios.get(`${config.apiUrl}/info`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        setUser(res.data);
+      } catch (error: any) {
+        Swal.fire({
+          icon: "error",
+          title: "หมดเวลาการใช้งาน",
+          text: "กรุณาเข้าสู่ระบบใหม่อีกครั้ง",
+          showConfirmButton: false,
+          timer: 2000,
+        });
+        localStorage.removeItem("token");
+        localStorage.removeItem("tempToken");
+        router.replace("/");
+      }
+    };
 
-  usernames(); // เรียกใช้ในนี้เลย
-}, [router]);
-
+    usernames(); // เรียกใช้ในนี้เลย
+  }, [router]);
 
   const handleBurgerClick = () => {
     if (window.innerWidth >= 768) {
@@ -103,10 +105,9 @@ useEffect(() => {
           </button>
           <h1 className="ml-2 text-xl font-semibold">Dashboard</h1>
           <div className="text-sm md:text-base absolute right-4">
-            ยินดีต้อนรับ,{" "}
-            <span className="font-bold">
-              {user.user_fname}
-              {user.user_lname}
+            ยินดีต้อนรับ{" "}
+            <span className="font-bold text-yellow-500">
+              {user.user_fname} {user.user_lname}
             </span>
           </div>
         </header>

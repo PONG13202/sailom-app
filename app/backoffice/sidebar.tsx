@@ -1,6 +1,8 @@
 "use client";
 import Link from "next/link";
 import Swal from "sweetalert2";
+import { useRouter } from "next/navigation";
+
 
 interface SidebarProps {
   isOpen: boolean;
@@ -13,6 +15,7 @@ export default function Sidebar({
   isCollapsed,
   onClose,
 }: SidebarProps) {
+const router = useRouter();
 const handleLogout = () => {
   Swal.fire({
     title: 'ออกจากระบบ?',
@@ -26,7 +29,8 @@ const handleLogout = () => {
   }).then((result) => {
     if (result.isConfirmed) {
       localStorage.removeItem("token");
-      window.location.href = "/";
+      localStorage.removeItem("tempToken");
+      router.replace("/")
     }
   });
 };
@@ -111,3 +115,5 @@ const handleLogout = () => {
     </aside>
   );
 }
+
+

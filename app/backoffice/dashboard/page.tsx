@@ -17,6 +17,8 @@ export default function Dashboard() {
           showConfirmButton: false,
           timer: 2000
         })
+        localStorage.removeItem("token");
+        localStorage.removeItem("tempToken");
        router.replace('/');
     }
   }, [router]);

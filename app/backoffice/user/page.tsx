@@ -19,6 +19,7 @@ type User = {
   user_phone: string;
   user_img: string;
   user_status: number;
+  isAdmin: boolean;
 };
 
 // Interface for the expected API response structure for a single user
@@ -31,6 +32,7 @@ interface ApiUserResponse {
   user_phone: string | null;
   user_img: string | null;
   user_status: number | null; // หรือ number ถ้ามั่นใจว่าไม่เป็น null
+  isAdmin: boolean;
 }
 
 // Column definitions for the DataTable
@@ -121,6 +123,31 @@ const columns: ColumnDef<User>[] = [
       );
     },
   },
+  {
+  id: 'user_role',
+  accessorKey: 'user_role',
+  header: () => <div className="text-center">สิทธิ์</div>,
+  meta: { headerLabel: 'สิทธิ์ผู้ใช้' },
+  cell: ({ row }) => {
+    const role = row.original.isAdmin;
+    return (
+      <div className="flex justify-center">
+        <span
+          className={`px-3 py-1.5 text-xs font-semibold rounded-full shadow-sm
+            ${role === true
+              ? 'bg-purple-100 text-purple-800 border border-purple-300'
+              : 'bg-gray-100 text-gray-800 border border-gray-300'
+            }
+          `}
+        >
+          {role === true ? 'ผู้ดูแล' : 'ผู้ใช้งาน'}
+        </span>
+      </div>
+    );
+  },
+},
+
+
   // --- Optional Actions Column ---
   // {
   //   id: 'actions',
@@ -222,6 +249,7 @@ export default function UserPage() {
           user_phone: apiUser.user_phone || 'ไม่มีข้อมูล',
           user_img: apiUser.user_img || '', // Fallback เป็น string ว่าง
           user_status: typeof apiUser.user_status === 'number' ? apiUser.user_status : 0, // Fallback เป็น 0 ถ้าเป็น null หรือ undefined
+          isAdmin: apiUser.isAdmin,
         }));
         setUsers(mappedData);
       } else {
@@ -241,6 +269,7 @@ export default function UserPage() {
             allowOutsideClick: false,
           }).then(() => {
             localStorage.removeItem('token');
+            localStorage.removeItem("tempToken");
             router.replace('/');
           });
           return;
@@ -267,6 +296,7 @@ export default function UserPage() {
         confirmButtonText: 'ตกลง',
         allowOutsideClick: false,
       }).then(() => {
+        localStorage.removeItem("token");
         router.replace('/');
       });
       setIsLoading(false);
