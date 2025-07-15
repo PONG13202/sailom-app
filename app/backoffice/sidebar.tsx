@@ -89,14 +89,14 @@ const handleLogout = () => {
           </li>
           <li>
             <Link
-              href="/settings"
+              href="/backoffice/table"
               className={`flex items-center p-2 rounded hover:bg-white hover:text-gray-700 ${
                 isCollapsed ? "justify-center" : ""
               }`}
               onClick={onClose}
             >
-              <i className="fa-solid fa-gear mr-2"></i>
-              {!isCollapsed && "การตั้งค่า"}
+              <i className="fa-solid fa-table mr-2"></i>
+              {!isCollapsed && "จัดการโต๊ะ"}
             </Link>
           </li>
           <li>

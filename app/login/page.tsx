@@ -12,6 +12,15 @@ import { GoogleLogin, CredentialResponse } from "@react-oauth/google";
 import ProfileCompletionModal from "../components/ui/LoginModal";
 import { config } from "../config";
 
+const getUserFromToken = (token: string) => {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload;
+  } catch {
+    return null;
+  }
+};
+
 export default function LoginPage() {
   const router = useRouter();
 
@@ -66,6 +75,20 @@ export default function LoginPage() {
       if (res.status === 200) {
         const { token } = res.data;
         localStorage.setItem("token", token);
+
+        const user = getUserFromToken(token);
+        if (!user?.isAdmin) {
+          Swal.fire({
+            icon: "error",
+            title: "คุณไม่ใช่แอดมิน",
+            text: "ไม่สามารถเข้าสู่ระบบหลังบ้านได้",
+            showConfirmButton: false,
+            timer: 2000,
+          });
+          localStorage.removeItem("token");
+          return;
+        }
+
         await Swal.fire({
           icon: "success",
           title: "เข้าสู่ระบบสำเร็จ",
@@ -85,62 +108,84 @@ export default function LoginPage() {
     }
   };
 
-  const handleGoogleLoginSuccess = async (
-    credentialResponse: CredentialResponse
-  ) => {
-    try {
-      if (credentialResponse.credential) {
-        const token = credentialResponse.credential;
-        const res = await axios.post(`${config.apiUrl}/google_login`, {
-          token,
-        });
+const handleGoogleLoginSuccess = async (
+  credentialResponse: CredentialResponse
+) => {
+  try {
+    if (credentialResponse.credential) {
+      const token = credentialResponse.credential;
+      const res = await axios.post(`${config.apiUrl}/google_login`, {
+        token,
+      });
 
-        console.log("Google login response:", res.data);
+      console.log("Google login response:", res.data);
 
-        if (res.status === 200) {
-          if (res.data.incompleteProfile) {
-            setMissingFields(res.data.missingFields);
-            setProfileForm({
-              user_name: res.data.user?.user_name ?? "",
-              user_pass: "",
-              user_fname:
-                res.data.user?.user_fname ??
-                res.data.googleUser?.first_name ??
-                "",
-              user_lname:
-                res.data.user?.user_lname ??
-                res.data.googleUser?.last_name ??
-                "",
-              user_email:
-                res.data.user?.user_email ?? res.data.googleUser?.email ?? "",
-              user_phone: res.data.user?.user_phone ?? "",
-            });
-            localStorage.setItem("tempToken", res.data.tempToken);
-            setOpenModal(true);
-          } else {
-            localStorage.setItem("token", res.data.token);
-            await Swal.fire({
-              icon: "success",
-              title: "เข้าสู่ระบบด้วย Google สำเร็จ",
+      if (res.status === 200) {
+        if (res.data.incompleteProfile) {
+          setMissingFields(res.data.missingFields);
+          setProfileForm({
+            user_name: res.data.user?.user_name ?? "",
+            user_pass: "",
+            user_fname:
+              res.data.user?.user_fname ??
+              res.data.googleUser?.first_name ??
+              "",
+            user_lname:
+              res.data.user?.user_lname ??
+              res.data.googleUser?.last_name ??
+              "",
+            user_email:
+              res.data.user?.user_email ?? res.data.googleUser?.email ?? "",
+            user_phone: res.data.user?.user_phone ?? "",
+          });
+          localStorage.setItem("tempToken", res.data.tempToken);
+          setOpenModal(true);
+        } else {
+          localStorage.setItem("token", res.data.token);
+          const user = getUserFromToken(res.data.token); // Extract user from token
+          if (!user?.isAdmin) {
+            Swal.fire({
+              icon: "error",
+              title: "คุณไม่ใช่แอดมิน",
+              text: "ไม่สามารถเข้าสู่ระบบหลังบ้านได้",
               showConfirmButton: false,
-              timer: 1500,
+              timer: 2000,
             });
-            router.push("/backoffice/dashboard");
+            localStorage.removeItem("token");
+            return;
           }
+          await Swal.fire({
+            icon: "success",
+            title: "เข้าสู่ระบบด้วย Google สำเร็จ",
+            showConfirmButton: false,
+            timer: 1500,
+          });
+          router.push("/backoffice/dashboard");
         }
       }
-    } catch (error: unknown) {
-      console.error("Google login failed:", error);
+    }
+  } catch (error: any) {
+    if (error.response?.status === 403) {
+      Swal.fire({
+        icon: "error",
+        title: "เกิดข้อผิดพลาด",
+        text: error.response.data.message || "ผู้ใช้ไม่ใช่แอดมิน ไม่สามารถเข้าสู่ระบบได้",
+        showConfirmButton: false,
+        timer: 2000,
+      });
+    } else {
       Swal.fire({
         icon: "error",
         title: "เข้าสู่ระบบด้วย Google ล้มเหลว",
         showConfirmButton: false,
         timer: 2000,
       });
-      localStorage.removeItem("tempToken");
-      localStorage.removeItem("token");
     }
-  };
+    localStorage.removeItem("tempToken");
+    localStorage.removeItem("token");
+  }
+};
+
 
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,13 +197,13 @@ export default function LoginPage() {
         profileForm,
         {
           headers: {
-            Authorization: `Bearer ${token}`, // เพิ่ม header Authorization
+            Authorization: `Bearer ${token}`,
           },
         }
       );
       if (res.status === 200) {
-        localStorage.setItem("token", res.data.token); // เก็บ token ใหม่
-        localStorage.removeItem("tempToken"); // ลบ tempToken
+        localStorage.setItem("token", res.data.token);
+        localStorage.removeItem("tempToken");
         await Swal.fire({
           icon: "success",
           title: "เพิ่มข้อมูลสำเร็จ",

@@ -48,7 +48,7 @@ interface DataTableProps<TData, TValue> {
 export function DataTable<TData, TValue>({
   columns,
   data,
-  initialPageSize = 10,
+  initialPageSize = 5,
   defaultSortColumnId,
   searchPlaceholder = "ค้นหา...",
   noDataMessage = "ไม่พบข้อมูลที่ตรงกัน",
@@ -90,7 +90,7 @@ export function DataTable<TData, TValue>({
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    // enableSortingRemoval: false, // ถ้าไม่ต้องการให้ยกเลิกการ sort เมื่อคลิกครั้งที่ 3
+    
     meta: { // สามารถส่ง meta ไปยัง table instance ได้ หากต้องการใช้ใน custom renderers
         onRowClick
     }
