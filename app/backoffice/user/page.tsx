@@ -11,6 +11,21 @@ import { AddUserModal } from "../../components/ui/AddUserModal";
 import { EditUserModal } from "../../components/ui/EditUserModal";
 import { DeleteUserModal } from "../../components/ui/DeleteUserModal";
 
+// Import Heroicons
+import {
+  PencilSquareIcon,
+  TrashIcon,
+  UserPlusIcon,
+  ShieldCheckIcon,
+  UserIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  PhoneIcon,
+  EnvelopeIcon,
+  IdentificationIcon,
+  MagnifyingGlassIcon,
+} from "@heroicons/react/24/outline";
+
 // Type for the user data used in the frontend
 type User = {
   user_id: number;
@@ -121,7 +136,11 @@ export default function UserPage() {
     {
       id: "user_id",
       accessorKey: "user_id",
-      header: "ID",
+      header: ({ column }) => (
+        <div className="flex items-center gap-1">
+          <IdentificationIcon className="h-5 w-5 text-gray-500" /> ID
+        </div>
+      ),
       meta: { headerLabel: "รหัส" },
       cell: ({ row }) => (
         <div className="w-[50px] text-center font-medium text-gray-700">
@@ -133,7 +152,8 @@ export default function UserPage() {
       id: "user_img",
       accessorKey: "user_img",
       header: () => <div className="text-center">รูป</div>,
-      meta: { headerLabel: "รูปโปรไฟล์" },
+      // <<< เพิ่ม meta.excludeFromSearch: true ที่นี่
+      meta: { headerLabel: "รูปโปรไฟล์", excludeFromSearch: true },
       cell: ({ row }) => {
         const imgUrl = row.original.user_img;
         const baseUrl = config.apiUrl.endsWith("/")
@@ -187,7 +207,11 @@ export default function UserPage() {
     {
       id: "user_email",
       accessorKey: "user_email",
-      header: "Email",
+      header: ({ column }) => (
+        <div className="flex items-center gap-1">
+          <EnvelopeIcon className="h-5 w-5 text-gray-500" /> Email
+        </div>
+      ),
       meta: { headerLabel: "อีเมล" },
       cell: ({ row }) => (
         <div className="min-w-[180px] hidden sm:table-cell text-gray-600">
@@ -198,7 +222,11 @@ export default function UserPage() {
     {
       id: "user_phone",
       accessorKey: "user_phone",
-      header: "เบอร์โทร",
+      header: ({ column }) => (
+        <div className="flex items-center justify-center gap-1">
+          <PhoneIcon className="h-5 w-5 text-gray-500  " /> เบอร์โทร
+        </div>
+      ),
       meta: { headerLabel: "เบอร์โทรศัพท์" },
       cell: ({ row }) => (
         <div className="min-w-[120px] hidden sm:table-cell text-gray-600">
@@ -209,20 +237,27 @@ export default function UserPage() {
     {
       id: "user_status",
       accessorFn: (row) => (row.user_status === 1 ? "ปกติ" : "ระงับ"),
-      header: () => <div className="text-center">สถานะ</div>,
+      header: ({ column }) => (
+        <div className="text-center flex items-center justify-center  gap-1">
+          สถานะ
+        </div>
+      ),
       meta: { headerLabel: "สถานะบัญชี" },
       cell: ({ row }) => {
         const status = row.original.user_status;
         return (
-          <div className="flex justify-center">
+          <div className="flex justify-center items-center gap-1">
+            {status === 1 ? (
+              <CheckCircleIcon className="h-5 w-5 text-green-500" />
+            ) : (
+              <XCircleIcon className="h-5 w-5 text-red-500" />
+            )}
             <span
-              className={`px-3 py-1.5 text-xs font-semibold rounded-full shadow-sm
-            ${
-              status === 1
-                ? "bg-green-100 text-green-800 border border-green-300"
-                : "bg-red-100 text-red-800 border border-red-300"
-            }
-          `}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-full shadow-sm ${
+                status === 1
+                  ? "bg-green-100 text-green-800 border border-green-300"
+                  : "bg-red-100 text-red-800 border border-red-300"
+              }`}
             >
               {status === 1 ? "ปกติ" : "ระงับ"}
             </span>
@@ -233,20 +268,27 @@ export default function UserPage() {
     {
       id: "user_role",
       accessorFn: (row) => (row.isAdmin ? "ผู้ดูแล" : "ผู้ใช้งาน"),
-      header: () => <div className="text-center">สิทธิ์</div>,
+      header: ({ column }) => (
+        <div className="text-center flex items-center justify-center gap-1">
+          สิทธิ์
+        </div>
+      ),
       meta: { headerLabel: "สิทธิ์ผู้ใช้" },
       cell: ({ row }) => {
         const role = row.original.isAdmin;
         return (
-          <div className="flex justify-center">
+          <div className="flex justify-center items-center gap-1">
+            {role ? (
+              <ShieldCheckIcon className="h-5 w-5 text-yellow-600" />
+            ) : (
+              <UserIcon className="h-5 w-5 text-gray-500" />
+            )}
             <span
-              className={`px-3 py-1.5 text-xs font-semibold rounded-full shadow-sm
-          ${
-            role
-              ? "bg-yellow-100 text-yellow-800 border border-yellow-300" // สีทอง
-              : "bg-gray-100 text-gray-800 border border-gray-300"
-          }
-        `}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-full shadow-sm ${
+                role
+                  ? "bg-yellow-100 text-yellow-800 border border-yellow-300"
+                  : "bg-gray-100 text-gray-800 border border-gray-300"
+              }`}
             >
               {role ? "ผู้ดูแล" : "ผู้ใช้งาน"}
             </span>
@@ -257,16 +299,24 @@ export default function UserPage() {
 
     {
       id: "actions",
-      header: "จัดการ",
+      header: () => (
+        <div className="text-center">
+          <span className="sr-only">จัดการ</span>จัดการ
+        </div>
+      ),
       cell: ({ row }) => (
         <div className="flex justify-center gap-2">
-          <EditUserModal user={row.original} onRefresh={fetchData} />
+          <EditUserModal user={row.original} onRefresh={fetchData}>
+            <PencilSquareIcon className="h-5 w-5 text-blue-500" />
+          </EditUserModal>
           <DeleteUserModal
             userId={row.original.user_id}
             user_fname={row.original.user_fname}
             user_lname={row.original.user_lname}
             onRefresh={fetchData}
-          />
+          >
+            <TrashIcon className="h-5 w-5 text-red-500" />
+          </DeleteUserModal>
         </div>
       ),
       enableSorting: false,
@@ -305,51 +355,58 @@ export default function UserPage() {
   }
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-y-4">
-        <h1 className="text-3xl md:text-4xl font-bold text-slate-800">
-          ข้อมูลผู้ใช้งานระบบ
+    <div className="h-full p-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-y-4 mb-6">
+        <h1 className="text-2xl md:text-3xl font-bold text-slate-800 flex items-center gap-2">
+          <UserIcon className="h-7 w-7 text-sky-600" /> ข้อมูลผู้ใช้งานระบบ
         </h1>
-      </div>
-      {/* add new user */}
-      <AddUserModal  onRefresh={fetchData} />
-
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-y-4">
-        <p className="text-sm text-gray-600">
-          จํานวนผู้ใช้งานทั้งหมด:{" "}
-          <span className="font-semibold">{users.length}</span>
-        </p>
-      </div>
-
-      {fetchError && !isLoading && (
-        <div
-          className="p-4 my-4 text-sm text-red-800 bg-red-100 rounded-lg border-2 border-red-300 shadow-md"
-          role="alert"
-        >
-          <div className="flex items-center">
-            <strong className="font-bold mr-1">เกิดข้อผิดพลาด:</strong>
-            <span>{fetchError}</span>
-          </div>
-          <button
-            onClick={() => fetchData(true)}
-            className="mt-3 ml-auto block px-4 py-1.5 bg-red-600 text-white rounded-md text-xs hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition-colors"
-          >
-            ลองอีกครั้ง
+        <AddUserModal onRefresh={fetchData}>
+          <button className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none bg-sky-600 text-white hover:bg-sky-700 h-10 px-4 py-2 shadow-md gap-2">
+            <UserPlusIcon className="h-5 w-5" /> เพิ่มผู้ใช้งานใหม่
           </button>
-        </div>
-      )}
+        </AddUserModal>
+      </div>
 
-      <DataTable
-        columns={columns}
-        data={users}
-        searchPlaceholder="ค้นหา (ID, ชื่อ, อีเมล...)"
-        defaultSortColumnId="user_id"
-        noDataMessage={
-          fetchError
-            ? "ไม่สามารถโหลดข้อมูลได้ โปรดลองอีกครั้ง"
-            : "ไม่พบข้อมูลผู้ใช้งานในระบบ"
-        }
-      />
-    </div>
+      
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-y-4">
+          <p className="text-sm text-gray-600">
+            จำนวนผู้ใช้งานทั้งหมด:{" "}
+            <span className="font-semibold text-gray-800">
+              {users.length}
+            </span>
+          </p>
+        </div>
+
+        {fetchError && !isLoading && (
+          <div
+            className="p-4 my-4 text-sm text-red-800 bg-red-100 rounded-lg border-2 border-red-300 shadow-md"
+            role="alert"
+          >
+            <div className="flex items-center">
+              <strong className="font-bold mr-1">เกิดข้อผิดพลาด:</strong>
+              <span>{fetchError}</span>
+            </div>
+            <button
+              onClick={() => fetchData(true)}
+              className="mt-3 ml-auto block px-4 py-1.5 bg-red-600 text-white rounded-md text-xs hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition-colors"
+            >
+              ลองอีกครั้ง
+            </button>
+          </div>
+        )}
+
+        <DataTable
+          columns={columns}
+          data={users}
+          searchPlaceholder="ค้นหา (ID, ชื่อ, อีเมล, เบอร์โทร...)"
+          defaultSortColumnId="user_id"
+          noDataMessage={
+            fetchError
+              ? "ไม่สามารถโหลดข้อมูลได้ โปรดลองอีกครั้ง"
+              : "ไม่พบข้อมูลผู้ใช้งานในระบบ"
+          }
+        />
+      </div>
+    
   );
 }

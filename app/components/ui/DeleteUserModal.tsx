@@ -32,55 +32,60 @@ export function DeleteUserModal({
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-const handleDelete = async () => {
-  if (!password) {
-    Swal.fire({
-      title: "ผิดพลาด",
-      text: "กรุณากรอกรหัสผ่านเพื่อยืนยัน",
-      icon: "warning",
-      timer: 2000,
-      showConfirmButton: false,
-    });
-    return;
-  }
+  const handleDelete = async () => {
+    if (!password) {
+      Swal.fire({
+        title: "ผิดพลาด",
+        text: "กรุณากรอกรหัสผ่านเพื่อยืนยัน",
+        icon: "warning",
+        timer: 2000,
+        showConfirmButton: false,
+      });
+      return;
+    }
 
-  setIsLoading(true);
-  try {
-    const token = localStorage.getItem("token");
-    await axios.delete(`${config.apiUrl}/delete_user/${userId}`, {
-      data: { password },
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    setIsLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      await axios.delete(`${config.apiUrl}/delete_user/${userId}`, {
+        data: { password },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-    Swal.fire({
-      title: "สำเร็จ",
-      text: `ลบผู้ใช้ ${user_fname} ${user_lname} เรียบร้อยแล้ว`,
-      icon: "success",
-      timer: 1500,
-      showConfirmButton: false,
-    });
+      Swal.fire({
+        title: "สำเร็จ",
+        text: `ลบผู้ใช้ ${user_fname} ${user_lname} เรียบร้อยแล้ว`,
+        icon: "success",
+        timer: 1500,
+        showConfirmButton: false,
+      });
 
-    setOpen(false);
-    setPassword("");
-    onRefresh();
-  } catch (err: any) {
-    const errorMessage =
-      err?.response?.data?.message || "เกิดข้อผิดพลาดในการลบผู้ใช้";
+      setOpen(false);
+      setPassword("");
+      onRefresh();
+    } catch (err: any) {
+      const errorMessage =
+        err?.response?.data?.message || "เกิดข้อผิดพลาดในการลบผู้ใช้";
 
-    Swal.fire({
-      title: "ผิดพลาด",
-      text: errorMessage +"ไม่สามารถลบ "+ user_fname +" "+ user_lname + " ได้",
-      icon: "error",
-      timer: 2000,
-      showConfirmButton: false,
-    });
-  } finally {
-    setIsLoading(false);
-  }
-};
-
+      Swal.fire({
+        title: "ผิดพลาด",
+        text:
+          errorMessage +
+          "ไม่สามารถลบ " +
+          user_fname +
+          " " +
+          user_lname +
+          " ได้",
+        icon: "error",
+        timer: 2000,
+        showConfirmButton: false,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <>
@@ -140,6 +145,15 @@ const handleDelete = async () => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (
+                    e.key === "Enter" &&
+                    password.trim() !== "" &&
+                    !isLoading
+                  ) {
+                    handleDelete();
+                  }
+                }}
                 className="mt-1 border-gray-300 focus:border-red-500 focus:ring-red-500 rounded-lg"
                 placeholder="รหัสผ่าน"
               />

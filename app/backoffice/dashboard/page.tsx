@@ -27,17 +27,6 @@ export default function Dashboard() {
     <div className="h-full p-6">
       <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
       
-      {/* คลิป YouTube
-      <div className="w-full max-w-4xl md:h-150 mx-auto aspect-w-16 aspect-h-9">
-        <iframe
-          className="w-full h-full rounded-lg shadow-lg"
-          src="https://www.youtube.com/embed/RXRWE_XQ8aE"
-          title="YouTube video player"
-          frameBorder="0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-        ></iframe>
-      </div> */}
     </div>
   );
 }

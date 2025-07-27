@@ -26,7 +26,7 @@ export function AddUserModal({ onRefresh }: { onRefresh: () => void }) {
     user_lname: string;
     user_phone: string;
     user_img: File | null;
-    user_status: number | null;
+    
   }>({
     user_name: "",
     user_email: "",
@@ -35,7 +35,7 @@ export function AddUserModal({ onRefresh }: { onRefresh: () => void }) {
     user_lname: "",
     user_phone: "",
     user_img: null,
-    user_status: 1,
+
   });
   const [loading, setLoading] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState("");
@@ -63,78 +63,82 @@ export function AddUserModal({ onRefresh }: { onRefresh: () => void }) {
     return () => clearTimeout(timeout);
   }, [form.user_name]);
 
-  const handleAdd = async () => {
-    const { user_name, user_email, user_pass } = form;
+const handleAdd = async () => {
+  const token = localStorage.getItem("token");
+  const { user_name, user_email, user_pass } = form;
 
-    // ตรวจสอบเฉพาะฟิลด์ที่จำเป็น
-    if (!user_name || !user_email || !user_pass) {
-      Swal.fire({
-        title: "กรอกข้อมูลไม่ครบ",
-        icon: "warning",
-        timer: 2000,
-        showConfirmButton: false,
-      });
-      return;
+  if (!user_name || !user_email || !user_pass) {
+    Swal.fire({
+      title: "กรอกข้อมูลไม่ครบ",
+      icon: "warning",
+      timer: 2000,
+      showConfirmButton: false,
+    });
+    return;
+  }
+
+  try {
+    setLoading(true);
+
+    // ใช้ FormData เพื่อส่งข้อมูล
+    const formData = new FormData();
+    formData.append("user_name", form.user_name);
+    formData.append("user_email", form.user_email);
+    formData.append("user_pass", form.user_pass);
+    formData.append("user_fname", form.user_fname);
+    formData.append("user_lname", form.user_lname);
+    formData.append("user_phone", form.user_phone);
+    if (form.user_img) {
+      formData.append("user_img", form.user_img); // เพิ่มรูปภาพเฉพาะเมื่อมี
     }
 
-    try {
-      setLoading(true);
+    await axios.post(`${config.apiUrl}/add_user`, formData, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        // ไม่ต้องตั้ง 'Content-Type' เพราะ FormData จะตั้งค่าเป็น 'multipart/form-data' อัตโนมัติ
+      },
+    });
 
-      const formData = new FormData();
+    Swal.fire({
+      title: "เพิ่มผู้ใช้สำเร็จ",
+      icon: "success",
+      timer: 1500,
+      showConfirmButton: false,
+    });
 
-      formData.append("user_name", form.user_name);
-      formData.append("user_email", form.user_email);
-      formData.append("user_pass", form.user_pass);
-      formData.append("user_fname", form.user_fname);
-      formData.append("user_lname", form.user_lname);
-      formData.append("user_phone", form.user_phone);
-
-      // แนบเฉพาะถ้าเลือกรูป
-      if (form.user_img) {
-        formData.append("user_img", form.user_img);
-      }
-
-      // แนบ status เฉพาะถ้ามี
-      if (form.user_status !== undefined && form.user_status !== null) {
-        formData.append("user_status", form.user_status.toString());
-      }
-
-      await axios.post(`${config.apiUrl}/add_user`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      Swal.fire({
-        title: "เพิ่มผู้ใช้สำเร็จ",
-        icon: "success",
-        timer: 1500,
-        showConfirmButton: false,
-      });
-
-      setOpen(false);
-      setForm({
-        user_name: "",
-        user_email: "",
-        user_pass: "",
-        user_fname: "",
-        user_lname: "",
-        user_phone: "",
-        user_img: null,
-        user_status: 1,
-      });
-
-      onRefresh();
-    } catch (err) {
+    setOpen(false);
+    setForm({
+      user_name: "",
+      user_email: "",
+      user_pass: "",
+      user_fname: "",
+      user_lname: "",
+      user_phone: "",
+      user_img: null,
+    });
+    onRefresh();
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err)) {
       Swal.fire({
         title: "เกิดข้อผิดพลาด",
-        text: "ไม่สามารถเพิ่มผู้ใช้ได้",
+        text: `ไม่สามารถเพิ่มผู้ใช้ได้: ${err.response?.data?.message || err.message}`,
         icon: "error",
         timer: 2000,
         showConfirmButton: false,
       });
-    } finally {
-      setLoading(false);
+    } else {
+      Swal.fire({
+        title: "เกิดข้อผิดพลาด",
+        text: "เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ",
+        icon: "error",
+        timer: 2000,
+        showConfirmButton: false,
+      });
     }
-  };
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <>
@@ -158,7 +162,6 @@ export function AddUserModal({ onRefresh }: { onRefresh: () => void }) {
               user_lname: "",
               user_phone: "",
               user_img: null,
-              user_status: 1,
             });
             setUsernameStatus("");
           }
@@ -283,7 +286,6 @@ export function AddUserModal({ onRefresh }: { onRefresh: () => void }) {
                     placeholder="email@example.com"
                   />
                 </div>
-
                 <div>
                   <Label htmlFor="user_img" className="mb-2 block">
                     รูปโปรไฟล์ (เลือกจากเครื่อง)
@@ -317,7 +319,7 @@ export function AddUserModal({ onRefresh }: { onRefresh: () => void }) {
                       user_lname: "",
                       user_phone: "",
                       user_img: null,
-                      user_status: 1,
+                    
                     });
                     setOpen(false);
                   }}

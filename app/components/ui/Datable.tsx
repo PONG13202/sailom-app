@@ -20,6 +20,8 @@ import {
   ColumnDef,
   SortingState,
   RowData,
+  FilterFn, // <<< เพิ่ม FilterFn เข้ามา
+  // ColumnFiltersState, // อาจไม่จำเป็นต้องใช้โดยตรง หากใช้แค่ globalFilterFn
 } from "@tanstack/react-table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -32,6 +34,7 @@ declare module '@tanstack/react-table' {
     headerLabel?: string; // Label ที่จะแสดงใน mobile card view
     cellClassName?: string; // Custom class for cell content in both views
     headerClassName?: string; // Custom class for header in desktop view
+    excludeFromSearch?: boolean; // <<< เพิ่ม property นี้เพื่อระบุคอลัมน์ที่ไม่ต้องการค้นหา
   }
 }
 
@@ -72,6 +75,34 @@ export function DataTable<TData, TValue>({
 
   const [sorting, setSorting] = React.useState<SortingState>(initialSort);
 
+  // <<< เริ่มต้นเพิ่มโค้ดใหม่ตรงนี้
+  // Custom global filter function
+  // This function iterates through all visible cells of a row
+  // and checks if their string value (after coercing) contains the filter string.
+  // It specifically excludes columns marked with `excludeFromSearch: true` in their meta.
+  const customGlobalFilterFn: FilterFn<TData> = (row, columnId, filterValue) => {
+    if (!filterValue) return true; // If no filter value, show all rows
+
+    const lowerCaseFilter = String(filterValue).toLowerCase();
+
+    // Iterate over all visible columns
+    for (const column of row.getVisibleCells()) {
+        const columnMeta = column.column.columnDef.meta as ColumnMeta<TData, TValue> | undefined;
+        // Check if the column should be excluded from search
+        if (columnMeta?.excludeFromSearch) {
+            continue; // Skip this column
+        }
+
+        // Get the value from the cell and convert to string for comparison
+        const cellValue = String(column.getValue()).toLowerCase();
+        if (cellValue.includes(lowerCaseFilter)) {
+            return true; // Match found in this column, include the row
+        }
+    }
+    return false; // No match found in any searchable column
+  };
+  // <<< สิ้นสุดโค้ดใหม่ตรงนี้
+
   const table = useReactTable({
     data,
     columns,
@@ -90,6 +121,7 @@ export function DataTable<TData, TValue>({
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    globalFilterFn: customGlobalFilterFn, // <<< ใช้ custom filter function ที่นี่
     
     meta: { // สามารถส่ง meta ไปยัง table instance ได้ หากต้องการใช้ใน custom renderers
         onRowClick
@@ -117,10 +149,10 @@ export function DataTable<TData, TValue>({
       <div className="rounded-lg border bg-card text-card-foreground shadow-md overflow-hidden"> {/* Modern shadow & background */}
         {/* Desktop Table View */}
         <div className="hidden md:block overflow-x-auto">
-          <Table className="min-w-full">
-            <TableHeader className="bg-muted/50">{/* ลบ newline/space ตรงนี้ */}
+          <Table className="min-w-full ">
+            <TableHeader className="bg-muted/50 ">{/* ลบ newline/space ตรงนี้ */}
               {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id} className="border-b border-gray-200">
+                <TableRow key={headerGroup.id} className="border-b border-gray-200 ">
                   {headerGroup.headers.map((header) => {
                     const canSort = header.column.getCanSort();
                     const sortDirection = header.column.getIsSorted();
@@ -130,11 +162,12 @@ export function DataTable<TData, TValue>({
                       <TableHead
                         key={header.id}
                         onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
-                        className={`
-                          py-3 px-4 text-left text-sm font-semibold text-muted-foreground
-                          ${columnMeta?.headerClassName || ""}
-                          ${canSort ? "cursor-pointer select-none hover:bg-muted transition-colors" : ""}
-                        `}
+className={`
+    py-3 px-4 text-sm font-semibold text-muted-foreground
+    ${columnMeta?.headerClassName || ""}
+    ${canSort ? "cursor-pointer select-none hover:bg-muted transition-colors" : ""}
+    border-r border-gray-200 last:border-r-0
+  `}
                         title={
                           canSort
                             ? `เรียงตาม ${flexRender(header.column.columnDef.header, header.getContext())} (${sortDirection === "asc" ? "น้อยไปมาก" : sortDirection === "desc" ? "มากไปน้อย" : "คลิกเพื่อเรียง"})`
@@ -148,7 +181,7 @@ export function DataTable<TData, TValue>({
                             : "none"
                         }
                       >
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 justify-center">
                           {flexRender(
                             header.column.columnDef.header,
                             header.getContext()
@@ -181,7 +214,13 @@ export function DataTable<TData, TValue>({
                     {row.getVisibleCells().map((cell) => {
                        const cellMeta = cell.column.columnDef.meta as ColumnMeta<TData, TValue> | undefined;
                       return (
-                        <TableCell key={cell.id} className={`py-3 px-4 text-sm text-gray-700 ${cellMeta?.cellClassName || ""}`}>
+                        <TableCell 
+                            key={cell.id} 
+                            className={`
+                                py-3 px-4 text-sm text-gray-700 
+                                ${cellMeta?.cellClassName || ""}
+                                border-r border-gray-200 last:border-r-0
+                            `}>
                           {flexRender(
                             cell.column.columnDef.cell,
                             cell.getContext()
@@ -218,16 +257,15 @@ export function DataTable<TData, TValue>({
                   const columnDef = cell.column.columnDef;
                   const meta = columnDef.meta as ColumnMeta<TData, TValue> | undefined;
                   const headerContent = typeof columnDef.header === "function"
-                                        ? flexRender(columnDef.header, cell.getContext())
-                                        : columnDef.header;
+                                              ? flexRender(columnDef.header, cell.getContext())
+                                              : columnDef.header;
 
                   const headerLabel = meta?.headerLabel || (typeof headerContent === 'string' ? headerContent : columnDef.id || "ข้อมูล");
 
-                   // Don't render if header is explicitly null or not defined and no meta.headerLabel
+                    // Don't render if header is explicitly null or not defined and no meta.headerLabel
                   if (headerContent === null || (headerContent === undefined && !meta?.headerLabel)) {
                     return null;
                   }
-
 
                   return (
                     <div
@@ -249,9 +287,9 @@ export function DataTable<TData, TValue>({
               </div>
             ))
           ) : (
-             <div className="p-8 text-center text-lg text-muted-foreground">
+              <div className="p-8 text-center text-lg text-muted-foreground">
                 {noDataMessage}
-             </div>
+              </div>
           )}
         </div>
       </div>
