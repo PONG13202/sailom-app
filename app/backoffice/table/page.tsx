@@ -504,15 +504,27 @@ const handleDeleteSeatOption = async (id: string) => {
         cancelButtonColor: "#d33",
         confirmButtonText: "ใช่, ลบเลย!",
         cancelButtonText: "ยกเลิก",
+        
       }).then(async (result) => {
         if (result.isConfirmed) {
           try {
             await axios.delete(`${config.apiUrl}/delete_table/${id}`);
             setTables((prev) => prev.filter((t) => t.id !== id));
-            Swal.fire("ลบแล้ว!", "โต๊ะถูกลบเรียบร้อยแล้ว", "success");
+            Swal.fire({
+              icon: "success",
+              title: "ลบโต๊ะสำเร็จ",
+              showConfirmButton: false,
+              timer: 1000,
+            });
           } catch (error) {
             console.error("Failed to delete table:", error);
-            Swal.fire("ผิดพลาด!", "ไม่สามารถลบโต๊ะได้", "error");
+            Swal.fire({
+              icon: "error",
+              title: "เกิดข้อผิดพลาด",
+              text: "ไม่สามารถลบโต๊ะได้\n" + String(error),
+              showConfirmButton: false,
+              timer: 1500,
+            });
             fetchAllData();
           }
         }
@@ -537,7 +549,7 @@ const handleDeleteSeatOption = async (id: string) => {
   return (
     <DndProvider backend={isMobile ? TouchBackend : HTML5Backend}>
       <div className="p-6 space-y-6">
-        <h1 className="text-2xl font-semibold mb-4">จัดการแผนผังโต๊ะ</h1>
+        <h1 className="text-3xl font-extrabold text-gray-900 mb-6 border-b-2 border-blue-200 pb-3">จัดการแผนผังโต๊ะ</h1>
 
         <div className="flex flex-wrap gap-4 items-start">
           {/* --- AddSeatOptionDialog UI (Integrated) --- */}

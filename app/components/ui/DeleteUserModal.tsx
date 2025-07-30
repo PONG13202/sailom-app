@@ -51,6 +51,7 @@ export function DeleteUserModal({
         data: { password },
         headers: {
           Authorization: `Bearer ${token}`,
+          
         },
       });
 

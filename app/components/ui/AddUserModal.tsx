@@ -26,7 +26,6 @@ export function AddUserModal({ onRefresh }: { onRefresh: () => void }) {
     user_lname: string;
     user_phone: string;
     user_img: File | null;
-    
   }>({
     user_name: "",
     user_email: "",
@@ -35,7 +34,6 @@ export function AddUserModal({ onRefresh }: { onRefresh: () => void }) {
     user_lname: "",
     user_phone: "",
     user_img: null,
-
   });
   const [loading, setLoading] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState("");
@@ -63,82 +61,72 @@ export function AddUserModal({ onRefresh }: { onRefresh: () => void }) {
     return () => clearTimeout(timeout);
   }, [form.user_name]);
 
-const handleAdd = async () => {
-  const token = localStorage.getItem("token");
-  const { user_name, user_email, user_pass } = form;
+  const handleAdd = async () => {
+    const token = localStorage.getItem("token");
+    const { user_name, user_email, user_pass, user_fname, user_lname, user_phone, user_img } = form;
 
-  if (!user_name || !user_email || !user_pass) {
-    Swal.fire({
-      title: "กรอกข้อมูลไม่ครบ",
-      icon: "warning",
-      timer: 2000,
-      showConfirmButton: false,
-    });
-    return;
-  }
-
-  try {
-    setLoading(true);
-
-    // ใช้ FormData เพื่อส่งข้อมูล
-    const formData = new FormData();
-    formData.append("user_name", form.user_name);
-    formData.append("user_email", form.user_email);
-    formData.append("user_pass", form.user_pass);
-    formData.append("user_fname", form.user_fname);
-    formData.append("user_lname", form.user_lname);
-    formData.append("user_phone", form.user_phone);
-    if (form.user_img) {
-      formData.append("user_img", form.user_img); // เพิ่มรูปภาพเฉพาะเมื่อมี
+    if (!user_name || !user_email || !user_pass) {
+      Swal.fire({
+        title: "กรอกข้อมูลไม่ครบ",
+        icon: "warning",
+        timer: 2000,
+        showConfirmButton: false,
+      });
+      return;
     }
 
-    await axios.post(`${config.apiUrl}/add_user`, formData, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        // ไม่ต้องตั้ง 'Content-Type' เพราะ FormData จะตั้งค่าเป็น 'multipart/form-data' อัตโนมัติ
-      },
-    });
+    try {
+      setLoading(true);
 
-    Swal.fire({
-      title: "เพิ่มผู้ใช้สำเร็จ",
-      icon: "success",
-      timer: 1500,
-      showConfirmButton: false,
-    });
+      // ใช้ FormData เพื่อรองรับการอัปโหลดไฟล์
+      const formData = new FormData();
+      formData.append("user_name", user_name);
+      formData.append("user_email", user_email);
+      formData.append("user_pass", user_pass);
+      formData.append("user_fname", user_fname);
+      formData.append("user_lname", user_lname);
+      formData.append("user_phone", user_phone);
+      if (user_img) {
+        formData.append("user_img", user_img); // ชื่อ field ต้องตรงกับ backend (multer.single('user_img'))
+      }
 
-    setOpen(false);
-    setForm({
-      user_name: "",
-      user_email: "",
-      user_pass: "",
-      user_fname: "",
-      user_lname: "",
-      user_phone: "",
-      user_img: null,
-    });
-    onRefresh();
-  } catch (err: unknown) {
-    if (axios.isAxiosError(err)) {
+      await axios.post(`${config.apiUrl}/add_user`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
       Swal.fire({
-        title: "เกิดข้อผิดพลาด",
-        text: `ไม่สามารถเพิ่มผู้ใช้ได้: ${err.response?.data?.message || err.message}`,
+        title: "เพิ่มผู้ใช้สำเร็จ",
+        icon: "success",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+
+      setOpen(false);
+      setForm({
+        user_name: "",
+        user_email: "",
+        user_pass: "",
+        user_fname: "",
+        user_lname: "",
+        user_phone: "",
+        user_img: null,
+      });
+      onRefresh();
+    } catch (err: unknown) {
+      Swal.fire({
+        title: "เกิดข้อผิดพลาด" + err,
+        text: "ไม่สามารถเพิ่มผู้ใช้ได้",
         icon: "error",
         timer: 2000,
         showConfirmButton: false,
       });
-    } else {
-      Swal.fire({
-        title: "เกิดข้อผิดพลาด",
-        text: "เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ",
-        icon: "error",
-        timer: 2000,
-        showConfirmButton: false,
-      });
+    } finally {
+      setLoading(false);
     }
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   return (
     <>
@@ -286,6 +274,7 @@ const handleAdd = async () => {
                     placeholder="email@example.com"
                   />
                 </div>
+
                 <div>
                   <Label htmlFor="user_img" className="mb-2 block">
                     รูปโปรไฟล์ (เลือกจากเครื่อง)
@@ -319,7 +308,6 @@ const handleAdd = async () => {
                       user_lname: "",
                       user_phone: "",
                       user_img: null,
-                    
                     });
                     setOpen(false);
                   }}
@@ -329,7 +317,7 @@ const handleAdd = async () => {
                 </Button>
 
                 <Button
-                  onClick={handleAdd}
+                  type="submit" // เปลี่ยนเป็น type="submit" เพื่อ trigger onSubmit ของ form
                   disabled={loading || !!usernameStatus}
                   className="cursor-pointer bg-blue-600 text-white hover:bg-blue-700"
                 >

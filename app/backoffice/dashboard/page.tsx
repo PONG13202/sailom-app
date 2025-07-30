@@ -25,7 +25,7 @@ export default function Dashboard() {
 
  return (
     <div className="h-full p-6">
-      <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
+      <h1 className="text-3xl font-extrabold text-gray-900 mb-6 border-b-2 border-blue-200 pb-3">Dashboard</h1>
       
     </div>
   );

@@ -20,8 +20,7 @@ import {
   ColumnDef,
   SortingState,
   RowData,
-  FilterFn, // <<< เพิ่ม FilterFn เข้ามา
-  // ColumnFiltersState, // อาจไม่จำเป็นต้องใช้โดยตรง หากใช้แค่ globalFilterFn
+  FilterFn,
 } from "@tanstack/react-table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -51,7 +50,7 @@ interface DataTableProps<TData, TValue> {
 export function DataTable<TData, TValue>({
   columns,
   data,
-  initialPageSize = 5,
+  initialPageSize = 10,
   defaultSortColumnId,
   searchPlaceholder = "ค้นหา...",
   noDataMessage = "ไม่พบข้อมูลที่ตรงกัน",
@@ -132,6 +131,38 @@ export function DataTable<TData, TValue>({
   const pageCount = table.getPageCount();
   const currentPage = table.getState().pagination.pageIndex + 1;
 
+  // ฟังก์ชันสำหรับสร้างเลขหน้า pagination ด้วย ellipsis
+  const getPageNumbers = () => {
+    const pageNumbers = [];
+    const maxPagesToShow = 5; // จำนวนหน้าที่แสดงสูงสุดก่อน ellipsis
+    const leftOffset = Math.floor(maxPagesToShow / 2);
+
+    let startPage = Math.max(1, currentPage - leftOffset);
+    let endPage = Math.min(pageCount, startPage + maxPagesToShow - 1);
+
+    if (endPage - startPage + 1 < maxPagesToShow) {
+      startPage = Math.max(1, endPage - maxPagesToShow + 1);
+    }
+
+    // เพิ่มหน้าแรกถ้า startPage > 1
+    if (startPage > 1) {
+      pageNumbers.push(1);
+      if (startPage > 2) pageNumbers.push("...");
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pageNumbers.push(i);
+    }
+
+    // เพิ่มหน้าสุดท้ายถ้า endPage < pageCount
+    if (endPage < pageCount) {
+      if (endPage < pageCount - 1) pageNumbers.push("...");
+      pageNumbers.push(pageCount);
+    }
+
+    return pageNumbers;
+  };
+
   return (
     <div className="space-y-4 w-full">
       {/* Search Input */}
@@ -162,7 +193,7 @@ export function DataTable<TData, TValue>({
                       <TableHead
                         key={header.id}
                         onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
-className={`
+                        className={`
     py-3 px-4 text-sm font-semibold text-muted-foreground
     ${columnMeta?.headerClassName || ""}
     ${canSort ? "cursor-pointer select-none hover:bg-muted transition-colors" : ""}
@@ -306,7 +337,7 @@ className={`
               size="sm"
               onClick={() => table.setPageIndex(0)}
               disabled={!table.getCanPreviousPage()}
-              className="px-3 py-1.5"
+              className="px-3 py-1.5 rounded-md shadow-sm hover:shadow-md transition-shadow"
             >
               หน้าแรก
             </Button>
@@ -315,16 +346,33 @@ className={`
               size="sm"
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
-              className="px-3 py-1.5"
+              className="px-3 py-1.5 rounded-md shadow-sm hover:shadow-md transition-shadow"
             >
               ก่อนหน้า
             </Button>
+
+            {/* เลขหน้า pagination */}
+            {getPageNumbers().map((page, index) => (
+              <Button
+                key={index}
+                variant={page === currentPage ? "default" : "outline"}
+                size="sm"
+                onClick={() => typeof page === "number" && table.setPageIndex(page - 1)}
+                disabled={typeof page !== "number"}
+                className={`px-3 py-1.5 rounded-md shadow-sm hover:shadow-md transition-shadow ${
+                  page === currentPage ? "bg-blue-600 text-white hover:bg-blue-700" : "text-blue-600"
+                }`}
+              >
+                {page}
+              </Button>
+            ))}
+
             <Button
               variant="outline"
               size="sm"
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
-              className="px-3 py-1.5"
+              className="px-3 py-1.5 rounded-md shadow-sm hover:shadow-md transition-shadow"
             >
               ถัดไป
             </Button>
@@ -333,7 +381,7 @@ className={`
               size="sm"
               onClick={() => table.setPageIndex(pageCount - 1)}
               disabled={!table.getCanNextPage()}
-              className="px-3 py-1.5"
+              className="px-3 py-1.5 rounded-md shadow-sm hover:shadow-md transition-shadow"
             >
               หน้าสุดท้าย
             </Button>
