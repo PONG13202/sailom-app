@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
       {
         protocol: 'http',
         hostname: 'localhost',
-        port: '3001',  // ระบุพอร์ตด้วย
+        port: '5000',  // ระบุพอร์ตด้วย
         pathname: '/uploads/**', // หรือจะใส่ /** เพื่ออนุญาตทุก path
       },
     ],

@@ -20,16 +20,27 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
-    const usernames = async () => {
+    const fetchUserAndCheckToken = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        router.replace("/");
+        return;
+      }
+
       try {
-        const token = localStorage.getItem("token");
+        const payload = JSON.parse(atob(token.split(".")[1]));
+        const currentTime = Date.now() / 1000;
+        if (payload.exp < currentTime) {
+          throw new Error("Token expired");
+        }
+
         const res = await axios.get(`${config.apiUrl}/info`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
         setUser(res.data);
-      } catch (error: any) {
+      } catch (err) {
         Swal.fire({
           icon: "error",
           title: "หมดเวลาการใช้งาน",
@@ -43,7 +54,36 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       }
     };
 
-    usernames(); // เรียกใช้ในนี้เลย
+    fetchUserAndCheckToken();
+
+    const interval = setInterval(() => {
+      const token = localStorage.getItem("token");
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split(".")[1]));
+          const date = new Date(payload.exp * 1000);
+          console.log(date.toLocaleString());
+          const currentTime = Date.now() / 1000;
+
+          if (payload.exp < currentTime) {
+            Swal.fire({
+              icon: "error",
+              title: "หมดเวลาการใช้งาน",
+              text: "กรุณาเข้าสู่ระบบใหม่อีกครั้ง",
+              showConfirmButton: false,
+              timer: 2000,
+            });
+            localStorage.removeItem("token");
+            localStorage.removeItem("tempToken");
+            router.replace("/");
+          }
+        } catch (err) {
+          router.replace("/");
+        }
+      }
+    }, 10000); // ทุก 10 วินาที
+
+    return () => clearInterval(interval);
   }, [router]);
 
   const handleBurgerClick = () => {

@@ -5,6 +5,7 @@ import axios, { AxiosError } from "axios";
 import { useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 import { config } from "../../config";
+import { socket } from "../../socket"; 
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "../../components/ui/Datable";
 import { AddUserModal } from "../../components/ui/AddUserModal";
@@ -130,6 +131,7 @@ export default function UserPage() {
     },
     [router]
   );
+  
 
   // Column definitions for the DataTable
   const columns: ColumnDef<User>[] = [
@@ -341,6 +343,17 @@ export default function UserPage() {
     }
     fetchData();
   }, [fetchData, router]);
+  useEffect(() => {
+  // ฟัง socket เพื่อโหลดข้อมูลใหม่เมื่อมีผู้ใช้เพิ่ม
+  socket.on("new_user", () => {
+    console.log("มีผู้ใช้ใหม่ ถูกเพิ่มเข้าระบบ");
+    fetchData(false); // รีเฟรชข้อมูลแบบไม่แสดง spinner
+  });
+
+  return () => {
+    socket.off("new_user");
+  };
+}, [fetchData]);
 
   if (isLoading) {
     return (

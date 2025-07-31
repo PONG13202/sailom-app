@@ -50,7 +50,7 @@ interface DataTableProps<TData, TValue> {
 export function DataTable<TData, TValue>({
   columns,
   data,
-  initialPageSize = 10,
+  initialPageSize = 5,
   defaultSortColumnId,
   searchPlaceholder = "ค้นหา...",
   noDataMessage = "ไม่พบข้อมูลที่ตรงกัน",

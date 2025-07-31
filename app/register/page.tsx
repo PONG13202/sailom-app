@@ -12,18 +12,22 @@ import Swal from "sweetalert2";
 export default function RegisterPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState(""); // เพิ่ม state สำหรับยืนยันรหัสผ่าน
   const [fname, setFname] = useState("");
   const [lname, setLname] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [selectedImage, setSelectedImage] = useState<File | null>(null); // เพิ่ม state สำหรับรูปภาพ
   const [isLoading, setIsLoading] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState("");
   const [emailStatus, setEmailStatus] = useState("");
   const [formError, setFormError] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  const [confirmPasswordError, setConfirmPasswordError] = useState(""); // เพิ่ม state สำหรับ error ยืนยันรหัสผ่าน
 
   const router = useRouter();
 
+  // Redirect if already logged in
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
@@ -31,6 +35,7 @@ export default function RegisterPage() {
     }
   }, [router]);
 
+  // Check username availability
   useEffect(() => {
     const timeout = setTimeout(async () => {
       if (username.trim()) {
@@ -53,6 +58,7 @@ export default function RegisterPage() {
     return () => clearTimeout(timeout);
   }, [username]);
 
+  // Check email availability
   useEffect(() => {
     const timeout = setTimeout(async () => {
       if (email.trim()) {
@@ -73,12 +79,52 @@ export default function RegisterPage() {
     return () => clearTimeout(timeout);
   }, [email]);
 
+  // Handle password change and validation
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setPassword(value);
+    if (value.length < 6) {
+      setPasswordError("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
+    } else {
+      setPasswordError("");
+    }
+    // ตรวจสอบ confirmPassword ด้วยเมื่อ password เปลี่ยน
+    if (confirmPassword && value !== confirmPassword) {
+      setConfirmPasswordError("รหัสผ่านไม่ตรงกัน");
+    } else {
+      setConfirmPasswordError("");
+    }
+  };
+
+  // Handle confirm password change and validation
+  const handleConfirmPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setConfirmPassword(value);
+    if (value !== password) {
+      setConfirmPasswordError("รหัสผ่านไม่ตรงกัน");
+    } else {
+      setConfirmPasswordError("");
+    }
+  };
+
+  // Handle image selection
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedImage(e.target.files[0]);
+    } else {
+      setSelectedImage(null);
+    }
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault(); // สำคัญ! ป้องกันการ reload หน้า
+    e.preventDefault(); // Prevent page reload
 
-    setFormError("");
+    setFormError(""); // Clear previous form errors
+    setPasswordError(""); // Clear password specific errors
+    setConfirmPasswordError(""); // Clear confirm password specific errors
 
-    if (!username || !password || !fname || !lname || !email) {
+    // --- Validation Checks ---
+    if (!username || !password || !confirmPassword || !fname || !lname || !email) {
       setFormError("กรุณากรอกข้อมูลให้ครบทุกช่อง");
       return;
     }
@@ -90,7 +136,14 @@ export default function RegisterPage() {
     }
 
     if (password.length < 6) {
-      setFormError("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
+      setPasswordError("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
+      setFormError("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร"); // แสดงที่ formError ด้วย
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setConfirmPasswordError("รหัสผ่านไม่ตรงกัน");
+      setFormError("รหัสผ่านไม่ตรงกัน"); // แสดงที่ formError ด้วย
       return;
     }
 
@@ -98,18 +151,29 @@ export default function RegisterPage() {
       setFormError("กรุณาแก้ไขข้อมูลที่ไม่ถูกต้องก่อนลงทะเบียน");
       return;
     }
+    // --- End Validation Checks ---
 
     setIsLoading(true);
     try {
-      const payload = {
-        user_name: username,
-        user_pass: password,
-        user_fname: fname,
-        user_lname: lname,
-        user_email: email,
-        user_phone: phone,
-      };
-      const response = await axios.post(`${config.apiUrl}/register`, payload);
+      // ใช้ FormData เพื่อส่งข้อมูลฟอร์มและไฟล์รูปภาพ
+      const formData = new FormData();
+      formData.append("user_name", username);
+      formData.append("user_pass", password);
+      formData.append("user_fname", fname);
+      formData.append("user_lname", lname);
+      formData.append("user_email", email);
+      formData.append("user_phone", phone);
+      if (selectedImage) {
+        formData.append("user_img", selectedImage); // 'user_profile_picture' คือชื่อ field ที่ API คาดหวัง
+      }
+
+      // ส่ง Request ด้วย axios โดยใช้ FormData
+      const response = await axios.post(`${config.apiUrl}/register`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data", // สำคัญมากเมื่อส่งไฟล์
+        },
+      });
+
       if (response.status === 200 || response.status === 201) {
         await Swal.fire({
           title: "ลงทะเบียนสำเร็จ",
@@ -127,7 +191,7 @@ export default function RegisterPage() {
       Swal.fire({
         icon: "error",
         title: "เกิดข้อผิดพลาด",
-        text: message,
+        text: message + err,
       });
     } finally {
       setIsLoading(false);
@@ -145,11 +209,13 @@ export default function RegisterPage() {
         </p>
 
         <form className="space-y-4" onSubmit={handleRegister}>
+          {/* Username */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label htmlFor="username" className="block text-sm font-medium text-gray-700">
               Username
             </label>
             <Input
+              id="username"
               className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
               type="text"
               placeholder="ชื่อผู้ใช้"
@@ -162,24 +228,18 @@ export default function RegisterPage() {
             )}
           </div>
 
+          {/* Password */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
               Password
             </label>
             <Input
+              id="password"
               className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
               type="password"
               placeholder="รหัสผ่าน"
               value={password}
-              onChange={(e) => {
-                const value = e.target.value;
-                setPassword(value);
-                if (value.length < 6) {
-                  setPasswordError("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
-                } else {
-                  setPasswordError("");
-                }
-              }}
+              onChange={handlePasswordChange}
               required
             />
             {passwordError && (
@@ -187,11 +247,32 @@ export default function RegisterPage() {
             )}
           </div>
 
+          {/* Confirm Password */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+              Confirm Password
+            </label>
+            <Input
+              id="confirmPassword"
+              className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
+              type="password"
+              placeholder="ยืนยันรหัสผ่าน"
+              value={confirmPassword}
+              onChange={handleConfirmPasswordChange}
+              required
+            />
+            {confirmPasswordError && (
+              <p className="text-sm text-red-500 mt-1">{confirmPasswordError}</p>
+            )}
+          </div>
+
+          {/* First Name */}
+          <div>
+            <label htmlFor="fname" className="block text-sm font-medium text-gray-700">
               First Name
             </label>
             <Input
+              id="fname"
               className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
               type="text"
               placeholder="ชื่อจริง"
@@ -201,11 +282,13 @@ export default function RegisterPage() {
             />
           </div>
 
+          {/* Last Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label htmlFor="lname" className="block text-sm font-medium text-gray-700">
               Last Name
             </label>
             <Input
+              id="lname"
               className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
               type="text"
               placeholder="นามสกุล"
@@ -215,11 +298,13 @@ export default function RegisterPage() {
             />
           </div>
 
+          {/* Email */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
               Email
             </label>
             <Input
+              id="email"
               className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
               type="email"
               placeholder="อีเมล"
@@ -232,13 +317,13 @@ export default function RegisterPage() {
             )}
           </div>
 
-          {formError && <p className="text-sm text-red-600">{formError}</p>}
-
+          {/* Phone */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
               Tell
             </label>
             <Input
+              id="phone"
               className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
               type="tel"
               pattern="[0-9]{10}"
@@ -249,6 +334,29 @@ export default function RegisterPage() {
             />
           </div>
 
+          {/* Image Upload */}
+          <div>
+            <label htmlFor="profilePicture" className="block text-sm font-medium text-gray-700">
+              รูปโปรไฟล์ (ไม่บังคับ)
+            </label>
+            <Input
+              id="profilePicture"
+              className="border-blue-300 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
+              type="file"
+              accept="image/*" // อนุญาตเฉพาะไฟล์รูปภาพ
+              onChange={handleImageChange}
+            />
+            {selectedImage && (
+              <p className="text-sm text-gray-500 mt-1">
+                เลือกไฟล์: {selectedImage.name}
+              </p>
+            )}
+          </div>
+
+          {/* Form Error Message */}
+          {formError && <p className="text-sm text-red-600">{formError}</p>}
+
+          {/* Register Button */}
           <Button
             className="w-full text-white bg-blue-500 hover:bg-blue-600"
             type="submit"
@@ -256,17 +364,21 @@ export default function RegisterPage() {
               isLoading ||
               !username ||
               !password ||
+              !confirmPassword || // เพิ่มการตรวจสอบ confirmPassword
               !fname ||
               !lname ||
               !email ||
               !!usernameStatus ||
-              !!emailStatus
+              !!emailStatus ||
+              !!passwordError || // เพิ่มการตรวจสอบ error รหัสผ่าน
+              !!confirmPasswordError // เพิ่มการตรวจสอบ error ยืนยันรหัสผ่าน
             }
           >
             {isLoading ? "กำลังลงทะเบียน..." : "ลงทะเบียน"}
           </Button>
         </form>
 
+        {/* Login Link */}
         <p className="text-center text-sm text-gray-600">
           มีบัญชีอยู่แล้ว?{" "}
           <Link href="/" className="text-blue-600 hover:underline">
