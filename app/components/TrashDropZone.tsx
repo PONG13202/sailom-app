@@ -1,24 +1,36 @@
-// components/table/TrashDropZone.tsx
+"use client";
+
 import { useDrop } from "react-dnd";
 import { Trash2 } from "lucide-react";
 
+type DragItem = { id: string };
+
 export function TrashDropZone({ onDrop }: { onDrop: (id: string) => void }) {
-  const [{ isOver }, drop] = useDrop(() => ({
+  const [{ isOver }, drop] = useDrop<DragItem>(() => ({
     accept: "TABLE_CARD",
-    drop: (item: any) => onDrop(item.id),
-    collect: (monitor) => ({
-      isOver: monitor.isOver(),
-    }),
+    drop: (item) => onDrop(item.id),
+    collect: (monitor) => ({ isOver: monitor.isOver() }),
   }));
 
   return (
     <div
       ref={drop}
-      className={`absolute bottom-6 right-6 p-4 rounded-full transition-all duration-200 ${
-        isOver ? "bg-red-200" : "bg-red-100"
-      }`}
+      className={[
+        "absolute bottom-3 right-3",
+        "rounded-full border shadow-md z-50 select-none",
+        "flex items-center justify-center",
+        "transition-transform transition-colors duration-150",
+        isOver ? "bg-red-500 border-red-600 scale-110" : "bg-red-50 border-red-300",
+      ].join(" ")}
+      style={{
+        width: 64,
+        height: 64,
+        touchAction: "none",
+      }}
+      aria-label="ทิ้งโต๊ะ"
+      title="ลากโต๊ะมาทิ้งที่นี่"
     >
-      <Trash2 className="text-red-600 w-6 h-6" />
+      <Trash2 className={isOver ? "text-white" : "text-red-600"} style={{ width: 26, height: 26 }} />
     </div>
   );
 }

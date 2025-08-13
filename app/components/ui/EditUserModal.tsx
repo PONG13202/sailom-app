@@ -18,9 +18,11 @@ import { motion, AnimatePresence } from "framer-motion";
 export function EditUserModal({
   user,
   onRefresh,
+  disabled = false, // ✅ รองรับปุ่มถูกปิดสิทธิ์
 }: {
   user: any;
   onRefresh: () => void;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [user_name, setUser_name] = useState("");
@@ -29,7 +31,7 @@ export function EditUserModal({
   const [user_email, setUser_email] = useState("");
   const [user_pass, setUser_pass] = useState("");
   const [user_phone, setUser_phone] = useState("");
-  const [user_img, setUser_img] = useState<File | null>(null); // State สำหรับรูปภาพ
+  const [user_img, setUser_img] = useState<File | null>(null);
 
   const [usernameStatus, setUsernameStatus] = useState("");
   const [emailStatus, setEmailStatus] = useState("");
@@ -45,6 +47,7 @@ export function EditUserModal({
     }
   }, [user]);
 
+  // debounce check username
   useEffect(() => {
     const timeout = setTimeout(async () => {
       if (user_name.trim() && user_name !== user.user_name) {
@@ -60,10 +63,10 @@ export function EditUserModal({
         setUsernameStatus("");
       }
     }, 500);
-
     return () => clearTimeout(timeout);
   }, [user_name, user.user_name]);
 
+  // debounce check email
   useEffect(() => {
     const timeout = setTimeout(async () => {
       if (user_email.trim() && user_email !== user.user_email) {
@@ -79,7 +82,6 @@ export function EditUserModal({
         setEmailStatus("");
       }
     }, 500);
-
     return () => clearTimeout(timeout);
   }, [user_email, user.user_email]);
 
@@ -97,27 +99,18 @@ export function EditUserModal({
 
     try {
       const token = localStorage.getItem("token");
-      const formData = new FormData(); // สร้าง FormData สำหรับส่งข้อมูล
+      const formData = new FormData();
       formData.append("user_name", user_name);
       formData.append("user_fname", fname);
       formData.append("user_lname", lname);
       formData.append("user_email", user_email);
       formData.append("user_pass", user_pass);
       formData.append("user_phone", user_phone);
-      if (user_img) {
-             formData.append("user_img", user_img); // เพิ่มไฟล์รูปภาพถ้ามี
-      }
+      if (user_img) formData.append("user_img", user_img);
 
-      await axios.put(
-        `${config.apiUrl}/update_user/${user.user_id}`,
-        formData,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            // ลบ "Content-Type": "multipart/form-data" เพื่อให้ axios จัดการเอง
-          },
-        }
-      );
+      await axios.put(`${config.apiUrl}/update_user/${user.user_id}`, formData, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       await Swal.fire({
         icon: "success",
@@ -128,8 +121,7 @@ export function EditUserModal({
       setOpen(false);
       onRefresh();
     } catch (err: any) {
-      const message =
-        err?.response?.data?.message || "ไม่สามารถบันทึกข้อมูลได้";
+      const message = err?.response?.data?.message || "ไม่สามารถบันทึกข้อมูลได้";
       Swal.fire({
         icon: "error",
         title: "เกิดข้อผิดพลาด",
@@ -142,13 +134,22 @@ export function EditUserModal({
 
   return (
     <>
+      {/* ปุ่มทริกเกอร์: โทนฟ้า + disabled สวย ๆ */}
       <Button
-        variant="outline"
-        onClick={() => setOpen(true)}
-        className="cursor-pointer px-3 py-1 text-sm font-medium"
+        type="button"
+        aria-disabled={disabled}
+        onClick={() => {
+          if (!disabled) setOpen(true);
+        }}
+        className={`cursor-pointer px-3 py-1.5 rounded-md border shadow-sm transition-all
+          ${disabled
+            ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+            : "bg-blue-100 text-blue-700 hover:bg-blue-200 hover:text-blue-900 border-blue-300 hover:shadow"
+          }`}
       >
         แก้ไข
       </Button>
+
       <Dialog open={open} onOpenChange={setOpen}>
         <AnimatePresence>
           {open && (
@@ -252,9 +253,7 @@ export function EditUserModal({
                         accept="image/*"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
-                          if (file) {
-                            setUser_img(file); // เก็บไฟล์รูปภาพที่เลือก
-                          }
+                          if (file) setUser_img(file);
                         }}
                       />
                     </div>
@@ -262,10 +261,10 @@ export function EditUserModal({
 
                   <DialogFooter className="mt-2">
                     <Button
-                      className="cursor-pointer"
                       type="button"
                       variant="ghost"
                       onClick={() => setOpen(false)}
+                      className="cursor-pointer"
                     >
                       ยกเลิก
                     </Button>

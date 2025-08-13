@@ -2,33 +2,52 @@
 
 import { useDrag } from "react-dnd";
 import { Card } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { PencilIcon } from "lucide-react";
+import * as React from "react";
+import * as SwitchPrimitives from "@radix-ui/react-switch";
+import { cn } from "@/lib/utils";
 
-// ขยาย Table Type เพื่อรวมข้อมูลที่จำเป็น
+const CustomSwitch = React.forwardRef<
+  React.ElementRef<typeof SwitchPrimitives.Root>,
+  React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>
+>(({ className, ...props }, ref) => (
+  <SwitchPrimitives.Root
+    className={cn(
+      "peer inline-flex h-5 w-10 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50",
+      props.checked ? "bg-green-500" : "bg-gray-300",
+      className
+    )}
+    {...props}
+    ref={ref}
+  >
+    <SwitchPrimitives.Thumb
+      className={cn(
+        "pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0"
+      )}
+    />
+  </SwitchPrimitives.Root>
+));
+CustomSwitch.displayName = SwitchPrimitives.Root.displayName;
+
 type Table = {
   id: string;
   x: number;
   y: number;
   active: boolean;
-  name: string; // ชื่อโต๊ะ (เช่น 01, A1)
-  seats: number; // จำนวนที่นั่ง
-  tableTypeName: string; // ID ประเภทโต๊ะ (ถ้าต้องการใช้)
-  additionalInfo: string; // ข้อมูลเพิ่มเติม (optional)
+  name: string;
+  seats: number;
+  tableTypeName: string;
+  additionalInfo: string;
 };
 
 interface TableCardProps {
   table: Table;
   onSwitch?: () => void;
-  onEdit?: (tableId: string) => void; // เพิ่ม prop สำหรับเหตุการณ์แก้ไข
+  onEdit?: (tableId: string) => void;
 }
 
-export function TableCard({
-  table,
-  onSwitch,
-  onEdit, // รับ prop onEdit
-}: TableCardProps) {
+export function TableCard({ table, onSwitch, onEdit }: TableCardProps) {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: "TABLE_CARD",
     item: table,
@@ -38,7 +57,7 @@ export function TableCard({
   }));
 
   const handleEditClick = (event: React.MouseEvent) => {
-    event.stopPropagation(); // หยุด event bubbling เพื่อไม่ให้ Card ถูกลากเมื่อกดปุ่ม Edit
+    event.stopPropagation();
     if (onEdit) {
       onEdit(table.id);
     }
@@ -51,38 +70,59 @@ export function TableCard({
       style={{ left: table.x, top: table.y, opacity: isDragging ? 0.5 : 1 }}
     >
       <Card
-        className={`w-[120px] h-[120px] p-2 shadow-md flex flex-col justify-between relative ${ // เพิ่ม relative เพื่อจัดตำแหน่งปุ่ม Edit
+        className={`w-[80px] h-[80px] p-1 shadow-md flex flex-col justify-start gap-1 relative overflow-hidden ${
           table.active ? "bg-white" : "bg-gray-200 opacity-60"
         } cursor-move`}
       >
-        {/* ปุ่มแก้ไข */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="cursor-pointer absolute top-1 right-1 h-6 w-6" // จัดตำแหน่งที่มุมขวาบน
-          onClick={handleEditClick} // เรียกใช้ handleEditClick เมื่อกดปุ่ม
-        >
-          <PencilIcon className="w-4 h-4 text-gray-500 hover:text-blue-600" />
-        </Button>
+        <div className="flex justify-between items-center w-full">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="cursor-pointer !h-5 !w-5 !p-0"
+            onClick={handleEditClick}
+          >
+            <PencilIcon className="w-3 h-3 text-gray-500 hover:text-blue-600" />
+          </Button>
 
-        <div className="flex flex-col items-center justify-center flex-grow pt-4">
-          <p className="text-lg font-bold text-gray-800">{table.name}</p>
-          <p className="text-sm text-gray-600">{table.seats} ที่นั่ง</p>
-          {/* เพิ่ม tabletype */}
-          <p className="text-xs text-gray-500 text-center mt-1">
-            {table.tableTypeName}
-          </p>
-          {table.additionalInfo && (
-            <p className="text-xs text-gray-500 text-center mt-1">
-              {table.additionalInfo}
-            </p>
+          {onSwitch && (
+            <CustomSwitch
+              checked={table.active}
+              onCheckedChange={onSwitch}
+              className="h-5 w-10 scale-75"
+            />
           )}
         </div>
-        {onSwitch && (
-          <div className="flex justify-center items-center pb-1">
-            <Switch checked={table.active} onCheckedChange={onSwitch} />
-          </div>
-        )}
+
+        <div className="flex flex-col items-center justify-start flex-1 gap-0.5 text-center px-1 min-w-0">
+          <p
+            className="text-sm font-bold text-gray-800 leading-tight w-full truncate"
+            title={table.name}
+          >
+            {table.name}
+          </p>
+          <p className="text-xs text-gray-600 leading-tight">
+            {table.seats} ที่
+          </p>
+          <p
+            className="text-[10px] text-gray-500 leading-tight w-full truncate"
+            title={table.tableTypeName}
+          >
+            {table.tableTypeName}
+          </p>
+          {/* {table.additionalInfo && (
+            <p
+              className="text-[10px] text-gray-500 leading-tight w-full overflow-hidden"
+              style={{
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+              }}
+              title={table.additionalInfo}
+            >
+              {table.additionalInfo}
+            </p>
+          )} */}
+        </div>
       </Card>
     </div>
   );

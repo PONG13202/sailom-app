@@ -3,7 +3,7 @@
 import { useDrop } from "react-dnd";
 import { TableCard } from "./TableCard";
 import { TrashDropZone } from "./TrashDropZone";
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useMemo } from "react";
 
 type Table = {
   id: string;
@@ -12,9 +12,9 @@ type Table = {
   active: boolean;
   name: string;
   seats: number;
-  tableTypeId: string; // ทำให้เป็น required ตาม TableData interface
+  tableTypeId: string;
   tableTypeName: string;
-  additionalInfo: string; // ทำให้เป็น required ตาม TableData interface
+  additionalInfo: string;
 };
 
 type DragItem = {
@@ -29,10 +29,13 @@ interface TableCanvasProps {
   onTablePositionChange: (id: string, x: number, y: number) => void;
   onTableToggleActive: (id: string, active: boolean) => void;
   onTableDelete: (id: string) => void;
-  onTableEdit: (id: string) => void; // **เพิ่ม prop นี้**
+  onTableEdit: (id: string) => void;
+  numRows: number;
+  numCols: number;
 }
 
-const GRID_SIZE = 120;
+const GRID_SIZE = 80;
+const PADDING = 80;
 
 function snapToGrid(
   x: number,
@@ -49,9 +52,46 @@ export function TableCanvas({
   onTablePositionChange,
   onTableToggleActive,
   onTableDelete,
-  onTableEdit, // **รับ prop นี้เข้ามา**
+  onTableEdit,
+  numRows,
+  numCols,
 }: TableCanvasProps) {
   const mapRef = useRef<HTMLDivElement>(null);
+
+  // Calculate canvas dimensions
+  const { minWidth, minHeight, backgroundImage, backgroundPosition, backgroundSize } = useMemo(() => {
+    const gridBasedWidth = numCols * GRID_SIZE + PADDING;
+    const gridBasedHeight = numRows * GRID_SIZE + PADDING;
+
+    let tableBasedWidth = GRID_SIZE * 4;
+    let tableBasedHeight = GRID_SIZE * 4;
+
+    if (tables.length > 0) {
+      const maxX = Math.max(...tables.map((t) => t.x));
+      const maxY = Math.max(...tables.map((t) => t.y));
+      tableBasedWidth = maxX + GRID_SIZE + PADDING;
+      tableBasedHeight = maxY + GRID_SIZE + PADDING;
+    }
+
+    const calculatedWidth = Math.max(gridBasedWidth, tableBasedWidth);
+    const calculatedHeight = Math.max(gridBasedHeight, tableBasedHeight);
+
+    // Generate vertical lines
+    const verticalLines = Array.from({ length: numCols + 1 }).map(() => 'linear-gradient(#e0e0e0, #e0e0e0)').join(', ');
+    const verticalPositions = Array.from({ length: numCols + 1 }).map((_, i) => `${i * GRID_SIZE}px 0`).join(', ');
+    const verticalSizes = Array.from({ length: numCols + 1 }).map(() => '1px 100%').join(', ');
+
+    // Generate horizontal lines
+    const horizontalLines = Array.from({ length: numRows + 1 }).map(() => 'linear-gradient(90deg, #e0e0e0, #e0e0e0)').join(', ');
+    const horizontalPositions = Array.from({ length: numRows + 1 }).map((_, i) => `0 ${i * GRID_SIZE}px`).join(', ');
+    const horizontalSizes = Array.from({ length: numRows + 1 }).map(() => '100% 1px').join(', ');
+
+    const bgImage = `${verticalLines}, ${horizontalLines}`;
+    const bgPosition = `${verticalPositions}, ${horizontalPositions}`;
+    const bgSize = `${verticalSizes}, ${horizontalSizes}`;
+
+    return { minWidth: calculatedWidth, minHeight: calculatedHeight, backgroundImage: bgImage, backgroundPosition: bgPosition, backgroundSize: bgSize };
+  }, [tables, numRows, numCols]);
 
   const [, drop] = useDrop<DragItem>(() => ({
     accept: "TABLE_CARD",
@@ -66,7 +106,12 @@ export function TableCanvas({
         offset.y - rect.top
       );
 
-      onTablePositionChange(item.id, snappedX, snappedY);
+      const maxX = (numCols - 1) * GRID_SIZE;
+      const maxY = (numRows - 1) * GRID_SIZE;
+      const boundedX = Math.max(0, Math.min(snappedX, maxX));
+      const boundedY = Math.max(0, Math.min(snappedY, maxY));
+
+      onTablePositionChange(item.id, boundedX, boundedY);
     },
   }));
 
@@ -80,11 +125,14 @@ export function TableCanvas({
     <div
       id="map-zone"
       ref={mapRef}
-      className="relative w-full h-[600px] rounded-lg bg-violet-50 border border-dashed"
+      className="relative rounded-lg bg-violet-50 border border-dashed"
       style={{
-        backgroundImage: `linear-gradient(90deg, #e0e0e0 1px, transparent 1px),
-                               linear-gradient(#e0e0e0 1px, transparent 1px)`,
-        backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
+        backgroundImage,
+        backgroundPosition,
+        backgroundSize,
+        backgroundRepeat: 'no-repeat',
+        width: `${minWidth}px`,
+        height: `${minHeight}px`,
       }}
     >
       {tables.map((table) => (
@@ -92,11 +140,13 @@ export function TableCanvas({
           key={table.id}
           table={table}
           onSwitch={() => onTableToggleActive(table.id, !table.active)}
-          onEdit={onTableEdit} // **ส่ง prop นี้ลงไป**
+          onEdit={onTableEdit}
         />
       ))}
 
-      <TrashDropZone onDrop={onTableDelete} />
+      <div className="absolute top-30 right-0">
+        <TrashDropZone onDrop={onTableDelete} />
+      </div>
     </div>
   );
 }

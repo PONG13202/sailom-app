@@ -7,10 +7,9 @@ import { TouchBackend } from "react-dnd-touch-backend";
 import { isMobile } from "react-device-detect";
 import axios from "axios";
 import Swal from "sweetalert2";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Grid } from "lucide-react";
 import { motion } from "framer-motion";
 
-// Import UI components from shadcn/ui
 import {
   Dialog,
   DialogContent,
@@ -31,8 +30,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { config } from "../../config";
 import { TableCanvas } from "../../components/TableCanvas";
+import { GRID_SIZE, findFirstFreeCellPx } from "../../components/TableCanvas";
 
-// Define interfaces for data structures if not already defined elsewhere
 interface SeatOption {
   id: string;
   seats: number;
@@ -58,14 +57,12 @@ export default function TablePage() {
   const [tables, setTables] = useState<TableData[]>([]);
   const [seatOptions, setSeatOptions] = useState<SeatOption[]>([]);
   const [tableTypes, setTableTypes] = useState<TableType[]>([]);
-  const [isLoading, setIsLoading] = useState(true); // เพิ่มสถานะ isLoading
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [isAddSeatOptionDialogOpen, setIsAddSeatOptionDialogOpen] =
-    useState(false);
+  const [isAddSeatOptionDialogOpen, setIsAddSeatOptionDialogOpen] = useState(false);
   const [seatOptionInput, setSeatOptionInput] = useState("");
 
-  const [isAddTableTypeDialogOpen, setIsAddTableTypeDialogOpen] =
-    useState(false);
+  const [isAddTableTypeDialogOpen, setIsAddTableTypeDialogOpen] = useState(false);
   const [tableTypeInput, setTableTypeInput] = useState("");
 
   const [isAddTableDialogOpen, setIsAddTableDialogOpen] = useState(false);
@@ -81,11 +78,15 @@ export default function TablePage() {
   const [editTableTypeId, setEditTableTypeId] = useState("");
   const [editTableAdditionalInfo, setEditTableAdditionalInfo] = useState("");
 
-  // Function to fetch all data - SEPARATED GET REQUESTS
+  const [numRows, setNumRows] = useState(10);
+  const [numCols, setNumCols] = useState(10);
+  const [isGridSizeDialogOpen, setIsGridSizeDialogOpen] = useState(false);
+  const [gridRowsInput, setGridRowsInput] = useState("10");
+  const [gridColsInput, setGridColsInput] = useState("10");
+
   const fetchAllData = useCallback(async () => {
-    setIsLoading(true); // เริ่มโหลดข้อมูล
+    setIsLoading(true);
     console.log("Fetching all data...");
-    // Fetch Tables
     try {
       const tableRes = await axios.get(`${config.apiUrl}/tables`);
       setTables(tableRes.data || []);
@@ -99,7 +100,6 @@ export default function TablePage() {
       });
     }
 
-    // Fetch Seat Options
     try {
       const seatRes = await axios.get(`${config.apiUrl}/seats`);
       setSeatOptions(seatRes.data || []);
@@ -108,24 +108,37 @@ export default function TablePage() {
       console.error("โหลดข้อมูลที่นั่งล้มเหลว:", error);
     }
 
-    // Fetch Table Types
     try {
       const typeRes = await axios.get(`${config.apiUrl}/table_Types`);
       setTableTypes(typeRes.data || []);
       console.log("Table Types fetched:", typeRes.data);
     } catch (error) {
       console.error("โหลดข้อมูลประเภทโต๊ะล้มเหลว:", error);
+    }
+
+    try {
+      const gridRes = await axios.get(`${config.apiUrl}/grid_size`);
+      setNumRows(gridRes.data.rows);
+      setNumCols(gridRes.data.cols);
+      setGridRowsInput(String(gridRes.data.rows));
+      setGridColsInput(String(gridRes.data.cols));
+      console.log("Grid size fetched:", gridRes.data);
+    } catch (error) {
+      console.error("โหลดข้อมูลขนาดกริดล้มเหลว:", error);
+      Swal.fire({
+        icon: "error",
+        title: "เกิดข้อผิดพลาด",
+        text: "ไม่สามารถโหลดข้อมูลขนาดกริดได้",
+      });
     } finally {
-      setIsLoading(false); // สิ้นสุดการโหลดข้อมูล
+      setIsLoading(false);
     }
   }, []);
 
-  // Load all data on component mount
   useEffect(() => {
     fetchAllData();
   }, [fetchAllData]);
 
-  // --- SEAT OPTIONS Logic (Integrated from AddSeatOptionDialog) ---
   const handleAddSeatOption = async () => {
     const parsedSeats = parseInt(seatOptionInput);
     if (isNaN(parsedSeats) || parsedSeats <= 0) {
@@ -165,30 +178,29 @@ export default function TablePage() {
     }
   };
 
-const handleDeleteSeatOption = async (id: string) => {
-  try {
-    const res = await axios.delete(`${config.apiUrl}/delete_seat/${id}`);
-    if (res.status === 200) {
-      await fetchAllData(); // <--- ข้อผิดพลาดเกิดที่นี่
+  const handleDeleteSeatOption = async (id: string) => {
+    try {
+      const res = await axios.delete(`${config.apiUrl}/delete_seat/${id}`);
+      if (res.status === 200) {
+        await fetchAllData();
+        Swal.fire({
+          icon: "success",
+          title: "ลบที่นั่งสำเร็จ",
+          showConfirmButton: false,
+          timer: 1000,
+        });
+      }
+    } catch (error) {
       Swal.fire({
-        icon: "success",
-        title: "ลบที่นั่งสำเร็จ",
+        icon: "error",
+        title: "เกิดข้อผิดพลาด",
+        text: "ไม่สามารถลบที่นั่งได้\n" + String(error),
         showConfirmButton: false,
-        timer: 1000,
+        timer: 1500,
       });
     }
-  } catch (error) {
-    Swal.fire({
-      icon: "error",
-      title: "เกิดข้อผิดพลาด",
-      text: "ไม่สามารถลบที่นั่งได้\n" + String(error),
-      showConfirmButton: false,
-      timer: 1500,
-    });
-  }
-};
+  };
 
-  // --- TABLE TYPES Logic (Integrated from AddTableTypeDialog) ---
   const handleAddTableType = async () => {
     if (!tableTypeInput.trim()) {
       Swal.fire({
@@ -235,7 +247,7 @@ const handleDeleteSeatOption = async (id: string) => {
         Swal.fire({
           icon: "success",
           title: "ลบประเภทโต๊ะสำเร็จ",
-           showConfirmButton: false,
+          showConfirmButton: false,
           timer: 1000,
         });
       }
@@ -250,7 +262,19 @@ const handleDeleteSeatOption = async (id: string) => {
     }
   };
 
-  // --- ADD TABLE Logic (Integrated from AddTableDialog) ---
+  // ---------- NEW: หาช่องว่างตัวแรกในกริด (เลี่ยงซ้อน 0,0) ----------
+  const getFirstFreeCell = () => {
+    const occupied = new Set(tables.map((t) => `${t.x},${t.y}`));
+    for (let y = 0; y < numRows; y++) {
+      for (let x = 0; x < numCols; x++) {
+        const key = `${x},${y}`;
+        if (!occupied.has(key)) return { x, y };
+      }
+    }
+    return null; // กริดเต็ม
+  };
+  // --------------------------------------------------------------------
+
   const handleAddTable = async () => {
     console.log("newTableName:", newTableName);
     console.log("newTableSeats:", newTableSeats);
@@ -281,14 +305,26 @@ const handleDeleteSeatOption = async (id: string) => {
       return false;
     }
 
+    // ใช้พิกัดว่างแทนการ fix (0,0)
+    const freeCell = getFirstFreeCell();
+    if (!freeCell) {
+      Swal.fire({
+        icon: "warning",
+        title: "พื้นที่กริดเต็ม",
+        text: "ไม่สามารถเพิ่มโต๊ะใหม่ได้เพราะกริดถูกใช้เต็มแล้ว",
+        showConfirmButton: true,
+      });
+      return false;
+    }
+
     try {
       const res = await axios.post(`${config.apiUrl}/add_table`, {
         name: newTableName.trim(),
         seats: parsedSeats,
         tableTypeId: newTableTypeId,
         additionalInfo: newTableAdditionalInfo.trim(),
-        x: 0,
-        y: 0,
+        x: freeCell.x,
+        y: freeCell.y,
         active: true,
       });
 
@@ -317,7 +353,6 @@ const handleDeleteSeatOption = async (id: string) => {
     }
   };
 
-  // --- NEW: EDIT TABLE Logic ---
   const handleEditTable = async () => {
     if (!editingTable) return;
 
@@ -383,7 +418,6 @@ const handleDeleteSeatOption = async (id: string) => {
     }
   };
 
-  // --- NEW: Function to open edit dialog and populate fields ---
   const handleOpenEditTableDialog = useCallback(
     (id: string) => {
       const tableToEdit = tables.find((table) => table.id === id);
@@ -399,7 +433,49 @@ const handleDeleteSeatOption = async (id: string) => {
     [tables]
   );
 
-  // Effect to reset inputs when dialogs open/close
+  const handleUpdateGridSize = async () => {
+    const parsedRows = parseInt(gridRowsInput);
+    const parsedCols = parseInt(gridColsInput);
+    if (isNaN(parsedRows) || parsedRows <= 0 || isNaN(parsedCols) || parsedCols <= 0) {
+      Swal.fire({
+        icon: "error",
+        title: "ข้อมูลไม่ถูกต้อง",
+        text: "จำนวนแถวและคอลัมน์ต้องเป็นตัวเลขมากกว่า 0",
+        showConfirmButton: false,
+        timer: 1500,
+      });
+      return;
+    }
+
+    try {
+      const res = await axios.post(`${config.apiUrl}/add_grid_size`, {
+        rows: parsedRows,
+        cols: parsedCols,
+      });
+      if (res.status === 200) {
+        setNumRows(parsedRows);
+        setNumCols(parsedCols);
+        setIsGridSizeDialogOpen(false);
+        Swal.fire({
+          icon: "success",
+          title: "อัปเดตขนาดกริดสำเร็จ",
+          text: res.data.message,
+          showConfirmButton: false,
+          timer: 1500,
+        });
+      }
+    } catch (error) {
+      console.error("ไม่สามารถอัปเดตขนาดกริดได้:", error);
+      Swal.fire({
+        icon: "error",
+        title: "เกิดข้อผิดพลาด",
+        text: "ไม่สามารถอัปเดตขนาดกริดได้\n" + String(error),
+        showConfirmButton: false,
+        timer: 1500,
+      });
+    }
+  };
+
   useEffect(() => {
     if (isAddSeatOptionDialogOpen) {
       setSeatOptionInput("");
@@ -420,14 +496,20 @@ const handleDeleteSeatOption = async (id: string) => {
       setEditTableTypeId("");
       setEditTableAdditionalInfo("");
     }
+    if (isGridSizeDialogOpen) {
+      setGridRowsInput(String(numRows));
+      setGridColsInput(String(numCols));
+    }
   }, [
     isAddSeatOptionDialogOpen,
     isAddTableTypeDialogOpen,
     isAddTableDialogOpen,
     isEditTableDialogOpen,
+    isGridSizeDialogOpen,
+    numRows,
+    numCols,
   ]);
 
-  // Handler functions for TableCanvas (pass down to TableCanvas)
   const handleTablePositionChange = useCallback(
     async (id: string, newX: number, newY: number) => {
       setTables((prevTables) => {
@@ -482,11 +564,20 @@ const handleDeleteSeatOption = async (id: string) => {
         await axios.put(`${config.apiUrl}/update_table_status/${id}`, {
           active: activeStatus,
         });
-        console.log(`Updated status for table ${id}: active=${activeStatus}`);
-        Swal.fire("สำเร็จ!", "สถานะโต๊ะถูกอัปเดต", "success");
+        Swal.fire({
+          icon: "success",
+          title: "อัปเดตสถานะโต๊ะสําเร็จ",
+          showConfirmButton: false,
+          timer: 1000,
+        });
       } catch (error) {
-        console.error("Failed to update table status:", error);
-        Swal.fire("ผิดพลาด!", "ไม่สามารถอัปเดตสถานะโต๊ะได้", "error");
+        Swal.fire({
+          icon: "error",
+          title: "เกิดข้อผิดพลาด",
+          text: "ไม่สามารถอัปเดตสถานะโต๊ะได้\n" + String(error),
+          showConfirmButton: false,
+          timer: 1500,
+        });
         fetchAllData();
       }
     },
@@ -504,7 +595,6 @@ const handleDeleteSeatOption = async (id: string) => {
         cancelButtonColor: "#d33",
         confirmButtonText: "ใช่, ลบเลย!",
         cancelButtonText: "ยกเลิก",
-        
       }).then(async (result) => {
         if (result.isConfirmed) {
           try {
@@ -533,7 +623,6 @@ const handleDeleteSeatOption = async (id: string) => {
     [fetchAllData]
   );
 
-  // เพิ่มตัวโหลดก่อน return UI เดิม
   if (isLoading) {
     return (
       <div className="p-6 flex flex-col justify-center items-center min-h-[calc(100vh-120px)]">
@@ -549,345 +638,433 @@ const handleDeleteSeatOption = async (id: string) => {
   return (
     <DndProvider backend={isMobile ? TouchBackend : HTML5Backend}>
       <div className="p-6 space-y-6">
-        <h1 className="text-3xl font-extrabold text-gray-900 mb-6 border-b-2 border-blue-200 pb-3">จัดการแผนผังโต๊ะ</h1>
+        <h1 className="text-3xl font-extrabold text-gray-900 mb-6 border-b-2 border-blue-200 pb-3">
+          จัดการแผนผังโต๊ะ
+        </h1>
 
         <div className="flex flex-wrap gap-4 items-start">
-          {/* --- AddSeatOptionDialog UI (Integrated) --- */}
-          <div className="bg-white border rounded-lg p-4 shadow-sm">
-            <label className="text-sm text-gray-700 font-medium block mb-1">
-              เพิ่มจำนวนที่นั่ง
-            </label>
-            <Dialog
-              open={isAddSeatOptionDialogOpen}
-              onOpenChange={setIsAddSeatOptionDialogOpen}
-            >
-              <DialogTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="cursor-pointer rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200"
-                  title="เพิ่มจำนวนที่นั่ง"
-                >
-                  <Plus className="w-5 h-5" />
-                </Button>
-              </DialogTrigger>
-
-              <DialogContent className="max-w-sm rounded-2xl shadow-xl bg-white">
-                <motion.div
-                  initial={{ opacity: 0, y: -15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <DialogHeader>
-                    <DialogTitle className="text-lg font-semibold text-blue-700">
-                      เพิ่มจำนวนที่นั่ง
-                    </DialogTitle>
-                  </DialogHeader>
-
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      handleAddSeatOption();
-                    }}
-                    className="space-y-4 mt-2"
+          <div className="bg-white border rounded-lg p-4 shadow-sm ">
+            <div className="flex flex-col items-center justify-center">
+              <label className="text-sm text-gray-700 font-medium block mb-1">
+                เพิ่มจำนวนที่นั่ง
+              </label>
+              <Dialog
+                open={isAddSeatOptionDialogOpen}
+                onOpenChange={setIsAddSeatOptionDialogOpen}
+              >
+                <DialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="cursor-pointer  rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200"
+                    title="เพิ่มจำนวนที่นั่ง"
                   >
-                    <Input
-                      placeholder="จำนวนที่นั่ง เช่น 2, 4, 6"
-                      type="number"
-                      min={1}
-                      value={seatOptionInput}
-                      onChange={(e) => setSeatOptionInput(e.target.value)}
-                      className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
-                      required
-                    />
+                    <Plus className="w-5 h-5" />
+                  </Button>
+                </DialogTrigger>
 
-                    <DialogFooter className="flex justify-end gap-3 mt-6">
-                      <Button
-                        variant="outline"
-                        onClick={() => setIsAddSeatOptionDialogOpen(false)}
-                        type="button"
-                        className="cursor-pointer border-blue-600 text-blue-600 hover:bg-blue-50"
-                      >
-                        ยกเลิก
-                      </Button>
-                      <Button
-                        type="submit"
-                        className="cursor-pointer bg-blue-600 text-white hover:bg-blue-700"
-                      >
-                        บันทึก
-                      </Button>
-                    </DialogFooter>
-                  </form>
-                  {/* Display seatOptions from TablePage's state */}
-                  <div className="flex flex-wrap gap-2 mt-4">
-                    {seatOptions.length === 0 ? (
-                      <p className="text-sm text-gray-500">ยังไม่มีที่นั่ง</p>
-                    ) : (
-                      seatOptions.map((s) => (
-                        <span
-                          key={s.id}
-                          className="flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 border border-blue-300 rounded-full text-sm"
-                        >
-                          {s.seats} ที่นั่ง
-                          <button
-                            onClick={() => handleDeleteSeatOption(s.id)}
-                            className="cursor-pointer text-red-500 hover:text-red-700"
-                            title="ลบ"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </span>
-                      ))
-                    )}
-                  </div>
-                </motion.div>
-              </DialogContent>
-            </Dialog>
-          </div>
-
-          {/* --- AddTableTypeDialog UI (Integrated) --- */}
-          <div className="bg-white border rounded-lg p-4 shadow-sm">
-            <label className="text-sm text-gray-700 font-medium block mb-1">
-              เพิ่มประเภทโต๊ะ
-            </label>
-            <Dialog
-              open={isAddTableTypeDialogOpen}
-              onOpenChange={setIsAddTableTypeDialogOpen}
-            >
-              <DialogTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="cursor-pointer rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200"
-                  title="เพิ่มประเภทโต๊ะ"
-                >
-                  <Plus className="w-5 h-5" />
-                </Button>
-              </DialogTrigger>
-
-              <DialogContent className="max-w-sm rounded-2xl shadow-xl bg-white">
-                <motion.div
-                  initial={{ opacity: 0, y: -15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <DialogHeader>
-                    <DialogTitle className="text-lg font-semibold text-blue-700">
-                      เพิ่มประเภทโต๊ะ
-                    </DialogTitle>
-                  </DialogHeader>
-
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      handleAddTableType();
-                    }}
-                    className="space-y-4 mt-2"
+                <DialogContent className="max-w-sm rounded-2xl shadow-xl bg-white">
+                  <motion.div
+                    initial={{ opacity: 0, y: -15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
                   >
-                    <Input
-                      placeholder="ชื่อประเภทโต๊ะ เช่น กลางแจ้ง, ริมทะเล"
-                      value={tableTypeInput}
-                      onChange={(e) => setTableTypeInput(e.target.value)}
-                      className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
-                      required
-                    />
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-semibold text-blue-700">
+                        เพิ่มจำนวนที่นั่ง
+                      </DialogTitle>
+                    </DialogHeader>
 
-                    <DialogFooter className="flex justify-end gap-3 mt-6">
-                      <Button
-                        variant="outline"
-                        onClick={() => setIsAddTableTypeDialogOpen(false)}
-                        type="button"
-                        className="cursor-pointer border-blue-600 text-blue-600 hover:bg-blue-50"
-                      >
-                        ยกเลิก
-                      </Button>
-                      <Button
-                        type="submit"
-                        className="cursor-pointer bg-blue-600 text-white hover:bg-blue-700"
-                      >
-                        บันทึก
-                      </Button>
-                    </DialogFooter>
-                  </form>
-
-                  {/* Display tableTypes from TablePage's state */}
-                  <div className="flex flex-wrap gap-2 mt-4">
-                    {tableTypes.length === 0 ? (
-                      <p className="text-sm text-gray-500">
-                        ยังไม่มีประเภทโต๊ะ
-                      </p>
-                    ) : (
-                      tableTypes.map((type) => (
-                        <span
-                          key={type.id}
-                          className="flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 border border-blue-300 rounded-full text-sm"
-                        >
-                          {type.name}
-                          <button
-                            onClick={() => handleDeleteTableType(type.id)}
-                            className="cursor-pointer text-red-500 hover:text-red-700"
-                            title="ลบ"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </span>
-                      ))
-                    )}
-                  </div>
-                </motion.div>
-              </DialogContent>
-            </Dialog>
-          </div>
-
-          {/* --- AddTableDialog UI (Integrated) --- */}
-          <div className="bg-white border rounded-lg p-4 shadow-sm">
-            <label className="text-sm text-gray-700 font-medium block mb-1">
-              เพิ่มโต๊ะอาหาร
-            </label>
-            <Dialog
-              open={isAddTableDialogOpen}
-              onOpenChange={setIsAddTableDialogOpen}
-            >
-              <DialogTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="cursor-pointer rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200"
-                  title="เพิ่มโต๊ะ"
-                >
-                  <Plus className="w-5 h-5" />
-                </Button>
-              </DialogTrigger>
-
-              <DialogContent className="max-w-md rounded-2xl shadow-xl bg-white">
-                <motion.div
-                  initial={{ opacity: 0, y: -15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <DialogHeader>
-                    <DialogTitle className="text-lg font-semibold text-blue-700">
-                      เพิ่มโต๊ะอาหาร
-                    </DialogTitle>
-                  </DialogHeader>
-
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      handleAddTable();
-                    }}
-                    className="space-y-4 mt-2"
-                  >
-                    <Input
-                      placeholder="ชื่อโต๊ะ (เช่น 01 หรือ A1)"
-                      value={newTableName}
-                      onChange={(e) => setNewTableName(e.target.value)}
-                      className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
-                      required
-                    />
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        จำนวนที่นั่ง
-                      </label>
-                      <Select
-                        value={newTableSeats}
-                        onValueChange={(val) => setNewTableSeats(val)}
-                      >
-                        <SelectTrigger className="w-full border-blue-300 focus:ring-blue-500 focus:border-blue-500 hover:border-blue-400 transition-colors">
-                          <SelectValue placeholder="เลือกจำนวนที่นั่ง" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white border border-blue-200 rounded-lg shadow-md max-h-48 overflow-auto">
-                          {seatOptions.length === 0 ? (
-                            <div className="p-2 text-gray-500 text-center">
-                              ไม่มีตัวเลือกที่นั่ง
-                            </div>
-                          ) : (
-                            seatOptions.map((option) => (
-                              <SelectItem
-                                key={option.id}
-                                value={String(option.seats)}
-                                className="cursor-pointer hover:bg-blue-50 data-[state=checked]:bg-blue-100 data-[state=checked]:text-blue-800"
-                              >
-                                {option.seats} ที่นั่ง
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        ประเภทโต๊ะ
-                      </label>
-                      <Select
-                        onValueChange={(val: string) => {
-                          console.log("Selected Table Type ID:", val);
-                          setNewTableTypeId(val);
-                        }}
-                        value={newTableTypeId}
-                      >
-                        <SelectTrigger className="w-full border-blue-300 focus:ring-blue-500 focus:border-blue-500 hover:border-blue-400 transition-colors">
-                          <SelectValue placeholder="เลือกประเภทโต๊ะ" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white border border-blue-200 rounded-lg shadow-md max-h-48 overflow-auto">
-                          {tableTypes.length === 0 ? (
-                            <div className="p-2 text-gray-500 text-center">
-                              ไม่มีประเภทโต๊ะ
-                            </div>
-                          ) : (
-                            tableTypes.map((type) => (
-                              <SelectItem
-                                key={type.id}
-                                value={String(type.id)}
-                                className="cursor-pointer hover:bg-blue-50 data-[state=checked]:bg-blue-100 data-[state=checked]:text-blue-800"
-                              >
-                                {type.name}
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        ข้อมูลเพิ่มเติม
-                      </label>
-                      <Textarea
-                        placeholder="ข้อมูลเพิ่มเติมเกี่ยวกับโต๊ะ (เช่น โต๊ะริมหน้าต่าง, โต๊ะสำหรับครอบครัว)"
-                        value={newTableAdditionalInfo}
-                        onChange={(e) =>
-                          setNewTableAdditionalInfo(e.target.value)
-                        }
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        handleAddSeatOption();
+                      }}
+                      className="space-y-4 mt-2"
+                    >
+                      <Input
+                        placeholder="จำนวนที่นั่ง เช่น 2, 4, 6"
+                        type="number"
+                        min={1}
+                        value={seatOptionInput}
+                        onChange={(e) => setSeatOptionInput(e.target.value)}
                         className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
+                        required
                       />
-                    </div>
 
-                    <DialogFooter className="flex justify-end gap-3 mt-6">
-                      <Button
-                        variant="outline"
-                        onClick={() => setIsAddTableDialogOpen(false)}
-                        type="button"
-                        className="cursor-pointer border-blue-600 text-blue-600 hover:bg-blue-50"
-                      >
-                        ยกเลิก
-                      </Button>
-                      <Button
-                        type="submit"
-                        className="cursor-pointer bg-blue-600 text-white hover:bg-blue-700"
-                      >
-                        บันทึก
-                      </Button>
-                    </DialogFooter>
-                  </form>
-                </motion.div>
-              </DialogContent>
-            </Dialog>
+                      <DialogFooter className="flex justify-end gap-3 mt-6">
+                        <Button
+                          variant="outline"
+                          onClick={() => setIsAddSeatOptionDialogOpen(false)}
+                          type="button"
+                          className="cursor-pointer border-blue-600 text-blue-600 hover:bg-blue-50"
+                        >
+                          ยกเลิก
+                        </Button>
+                        <Button
+                          type="submit"
+                          className="cursor-pointer bg-blue-600 text-white hover:bg-blue-700"
+                        >
+                          บันทึก
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                    <div className="flex flex-wrap gap-2 mt-4">
+                      {seatOptions.length === 0 ? (
+                        <p className="text-sm text-gray-500">ยังไม่มีที่นั่ง</p>
+                      ) : (
+                        seatOptions.map((s) => (
+                          <span
+                            key={s.id}
+                            className="flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 border border-blue-300 rounded-full text-sm"
+                          >
+                            {s.seats} ที่นั่ง
+                            <button
+                              onClick={() => handleDeleteSeatOption(s.id)}
+                              className="cursor-pointer text-red-500 hover:text-red-700"
+                              title="ลบ"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </motion.div>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
 
-          {/* --- NEW: EDIT TABLE DIALOG UI --- */}
+          <div className="bg-white border rounded-lg p-4 shadow-sm">
+            <div className="flex flex-col items-center justify-center">
+              <label className="text-sm text-gray-700 font-medium block mb-1">
+                เพิ่มประเภทโต๊ะ
+              </label>
+              <Dialog
+                open={isAddTableTypeDialogOpen}
+                onOpenChange={setIsAddTableTypeDialogOpen}
+              >
+                <DialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="cursor-pointer rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200"
+                    title="เพิ่มประเภทโต๊ะ"
+                  >
+                    <Plus className="w-5 h-5" />
+                  </Button>
+                </DialogTrigger>
+
+                <DialogContent className="max-w-sm rounded-2xl shadow-xl bg-white">
+                  <motion.div
+                    initial={{ opacity: 0, y: -15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-semibold text-blue-700">
+                        เพิ่มประเภทโต๊ะ
+                      </DialogTitle>
+                    </DialogHeader>
+
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        handleAddTableType();
+                      }}
+                      className="space-y-4 mt-2"
+                    >
+                      <Input
+                        placeholder="ชื่อประเภทโต๊ะ เช่น กลางแจ้ง, ริมทะเล"
+                        value={tableTypeInput}
+                        onChange={(e) => setTableTypeInput(e.target.value)}
+                        className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+
+                      <DialogFooter className="flex justify-end gap-3 mt-6">
+                        <Button
+                          variant="outline"
+                          onClick={() => setIsAddTableTypeDialogOpen(false)}
+                          type="button"
+                          className="cursor-pointer border-blue-600 text-blue-600 hover:bg-blue-50"
+                        >
+                          ยกเลิก
+                        </Button>
+                        <Button
+                          type="submit"
+                          className="cursor-pointer bg-blue-600 text-white hover:bg-blue-700"
+                        >
+                          บันทึก
+                        </Button>
+                      </DialogFooter>
+                    </form>
+
+                    <div className="flex flex-wrap gap-2 mt-4">
+                      {tableTypes.length === 0 ? (
+                        <p className="text-sm text-gray-500">
+                          ยังไม่มีประเภทโต๊ะ
+                        </p>
+                      ) : (
+                        tableTypes.map((type) => (
+                          <span
+                            key={type.id}
+                            className="flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 border border-blue-300 rounded-full text-sm"
+                          >
+                            {type.name}
+                            <button
+                              onClick={() => handleDeleteTableType(type.id)}
+                              className="cursor-pointer text-red-500 hover:text-red-700"
+                              title="ลบ"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </motion.div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+
+          <div className="bg-white border rounded-lg p-4 shadow-sm">
+            <div className="flex flex-col items-center justify-center">
+              <label className="text-sm text-gray-700 font-medium block mb-1">
+                เพิ่มโต๊ะอาหาร
+              </label>
+              <Dialog
+                open={isAddTableDialogOpen}
+                onOpenChange={setIsAddTableDialogOpen}
+              >
+                <DialogTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="cursor-pointer rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200"
+                    title="เพิ่มโต๊ะ"
+                  >
+                    <Plus className="w-5 h-5" />
+                  </Button>
+                </DialogTrigger>
+
+                <DialogContent className="max-w-md rounded-2xl shadow-xl bg-white">
+                  <motion.div
+                    initial={{ opacity: 0, y: -15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-semibold text-blue-700">
+                        เพิ่มโต๊ะอาหาร
+                      </DialogTitle>
+                    </DialogHeader>
+
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        handleAddTable();
+                      }}
+                      className="space-y-4 mt-2"
+                    >
+                      <Input
+                        placeholder="ชื่อโต๊ะ (เช่น 01 หรือ A1)"
+                        value={newTableName}
+                        onChange={(e) => setNewTableName(e.target.value)}
+                        className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          จำนวนที่นั่ง
+                        </label>
+                        <Select
+                          value={newTableSeats}
+                          onValueChange={(val) => setNewTableSeats(val)}
+                        >
+                          <SelectTrigger className="w-full border-blue-300 focus:ring-blue-500 focus:border-blue-500 hover:border-blue-400 transition-colors">
+                            <SelectValue placeholder="เลือกจำนวนที่นั่ง" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white border border-blue-200 rounded-lg shadow-md max-h-48 overflow-auto">
+                            {seatOptions.length === 0 ? (
+                              <div className="p-2 text-gray-500 text-center">
+                                ไม่มีตัวเลือกที่นั่ง
+                              </div>
+                            ) : (
+                              seatOptions.map((option) => (
+                                <SelectItem
+                                  key={option.id}
+                                  value={String(option.seats)}
+                                  className="cursor-pointer hover:bg-blue-50 data-[state=checked]:bg-blue-100 data-[state=checked]:text-blue-800"
+                                >
+                                  {option.seats} ที่นั่ง
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          ประเภทโต๊ะ
+                        </label>
+                        <Select
+                          onValueChange={(val: string) => {
+                            console.log("Selected Table Type ID:", val);
+                            setNewTableTypeId(val);
+                          }}
+                          value={newTableTypeId}
+                        >
+                          <SelectTrigger className="w-full border-blue-300 focus:ring-blue-500 focus:border-blue-500 hover:border-blue-400 transition-colors">
+                            <SelectValue placeholder="เลือกประเภทโต๊ะ" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white border border-blue-200 rounded-lg shadow-md max-h-48 overflow-auto">
+                            {tableTypes.length === 0 ? (
+                              <div className="p-2 text-gray-500 text-center">
+                                ไม่มีประเภทโต๊ะ
+                              </div>
+                            ) : (
+                              tableTypes.map((type) => (
+                                <SelectItem
+                                  key={type.id}
+                                  value={String(type.id)}
+                                  className="cursor-pointer hover:bg-blue-50 data-[state=checked]:bg-blue-100 data-[state=checked]:text-blue-800"
+                                >
+                                  {type.name}
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          ข้อมูลเพิ่มเติม
+                        </label>
+                        <Textarea
+                          placeholder="ข้อมูลเพิ่มเติมเกี่ยวกับโต๊ะ (เช่น โต๊ะริมหน้าต่าง, โต๊ะสำหรับครอบครัว)"
+                          value={newTableAdditionalInfo}
+                          onChange={(e) =>
+                            setNewTableAdditionalInfo(e.target.value)
+                          }
+                          className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+
+                      <DialogFooter className="flex justify-end gap-3 mt-6">
+                        <Button
+                          variant="outline"
+                          onClick={() => setIsAddTableDialogOpen(false)}
+                          type="button"
+                          className="cursor-pointer border-blue-600 text-blue-600 hover:bg-blue-50"
+                        >
+                          ยกเลิก
+                        </Button>
+                        <Button
+                          type="submit"
+                          className="cursor-pointer bg-blue-600 text-white hover:bg-blue-700"
+                        >
+                          บันทึก
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </motion.div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+
+          <div className="bg-white border rounded-lg p-4 shadow-sm">
+            <div className="flex flex-col items-center justify-center">
+              <label className="text-sm text-gray-700 font-medium block mb-1">
+                ตั้งค่าขนาดกริด
+              </label>
+              <Dialog
+                open={isGridSizeDialogOpen}
+                onOpenChange={setIsGridSizeDialogOpen}
+              >
+                <DialogTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="cursor-pointer rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200"
+                    title="ตั้งค่าขนาดกริด"
+                  >
+                    <Grid className="w-5 h-5" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-sm rounded-2xl shadow-xl bg-white">
+                  <motion.div
+                    initial={{ opacity: 0, y: -15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-semibold text-blue-700">
+                        ตั้งค่าขนาดกริด (แถว x คอลัมน์)
+                      </DialogTitle>
+                    </DialogHeader>
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        handleUpdateGridSize();
+                      }}
+                      className="space-y-4 mt-2"
+                    >
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          จำนวนแถว
+                        </label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={gridRowsInput}
+                          onChange={(e) => setGridRowsInput(e.target.value)}
+                          className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          จำนวนคอลัมน์
+                        </label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={gridColsInput}
+                          onChange={(e) => setGridColsInput(e.target.value)}
+                          className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
+                          required
+                        />
+                      </div>
+                      <DialogFooter className="flex justify-end gap-3 mt-6">
+                        <Button
+                          variant="outline"
+                          onClick={() => setIsGridSizeDialogOpen(false)}
+                          type="button"
+                          className="cursor-pointer border-blue-600 text-blue-600 hover:bg-blue-50"
+                        >
+                          ยกเลิก
+                        </Button>
+                        <Button
+                          type="submit"
+                          className="cursor-pointer bg-blue-600 text-white hover:bg-blue-700"
+                        >
+                          บันทึก
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </motion.div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+
           {editingTable && (
             <Dialog
               open={isEditTableDialogOpen}
@@ -1019,17 +1196,17 @@ const handleDeleteSeatOption = async (id: string) => {
               </DialogContent>
             </Dialog>
           )}
-          {/* --- END NEW: EDIT TABLE DIALOG UI --- */}
         </div>
 
-        {/* Canvas for Table components */}
-        <div className="relative w-full h-[600px] border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 overflow-hidden">
+        <div className="relative w-full min-h-[600px] border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 overflow-auto">
           <TableCanvas
             tables={tables}
             onTablePositionChange={handleTablePositionChange}
             onTableToggleActive={handleTableToggleActive}
             onTableDelete={handleTableDelete}
             onTableEdit={handleOpenEditTableDialog}
+            numRows={numRows}
+            numCols={numCols}
           />
         </div>
       </div>

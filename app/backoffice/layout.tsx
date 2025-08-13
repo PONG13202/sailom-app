@@ -61,8 +61,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       if (token) {
         try {
           const payload = JSON.parse(atob(token.split(".")[1]));
-          const date = new Date(payload.exp * 1000);
-          console.log(date.toLocaleString());
+          // const date = new Date(payload.exp * 1000);
+          // console.log(date.toLocaleString());
           const currentTime = Date.now() / 1000;
 
           if (payload.exp < currentTime) {
@@ -78,6 +78,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             router.replace("/");
           }
         } catch (err) {
+          localStorage.removeItem("token");
+          localStorage.removeItem("tempToken");
+          Swal.fire({
+            icon: "error",
+            title: "หมดเวลาการใช้งาน",
+            text: "กรุณาเข้าสู่ระบบใหม่อีกครั้ง",
+            showConfirmButton: false,
+            timer: 2000,
+          })
           router.replace("/");
         }
       }
@@ -105,7 +114,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="flex min-h-screen bg-gray-100">
+    <div className="flex min-h-screen w-full bg-gray-100">
       <Sidebar
         isOpen={sidebarOpen}
         isCollapsed={sidebarCollapsed}
