@@ -53,7 +53,7 @@ const getStatusTriggerClasses = (
 };
 
 const menuContentClass =
-  "bg-white border border-slate-200 shadow-lg rounded-md";
+  "bg-white border border-slate-200 shadow-lg rounded-md ";
 const itemClass =
   "data-[highlighted]:bg-muted data-[highlighted]:text-foreground cursor-pointer";
 
@@ -419,7 +419,7 @@ export default function UserPage() {
     Swal.fire({
       title: `จัดการสิทธิ์: ${u.user_fname} ${u.user_lname}`,
       html: `
-        <div style="text-align:left">
+        <div style="text-align:left ">
           ${checkbox("role_admin", "ผู้ดูแล (admin)", has("admin"))}
           ${checkbox("role_staff", "พนักงาน (staff)", has("staff"))}
           ${checkbox("role_user", "ผู้ใช้งาน (user)", has("user"))}
@@ -635,7 +635,7 @@ export default function UserPage() {
 
         return (
           <div className="flex flex-col items-center gap-2">
-            <div className="flex flex-wrap justify-center gap-1">
+            <div className=" flex flex-wrap justify-center gap-1">
               {u.roles.includes("admin") &&
                 badge("ผู้ดูแล", "bg-amber-100 text-amber-800")}
               {u.roles.includes("staff") &&
@@ -647,7 +647,7 @@ export default function UserPage() {
             <button
               disabled={!editable}
               onClick={() => openManageRoles(u)}
-              className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs shadow-sm
+              className={`cursor-pointer inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs shadow-sm
                 ${
                   editable
                     ? "hover:bg-slate-50"

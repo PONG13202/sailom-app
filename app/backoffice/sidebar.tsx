@@ -101,14 +101,15 @@ export default function Sidebar({
             <Link
               href="/backoffice/foodtype"
               className={`flex items-center p-2 rounded hover:bg-white hover:text-gray-700 ${
-                isCollapsed ? "justify-center" : "" 
+                isCollapsed ? "justify-center" : ""
               }`}
               onClick={onClose}
             >
               <i className="fa-solid fa-list mr-2"></i>
-              {!isCollapsed && <span className="text-sm">จัดการประเภทอาหาร</span>}
+              {!isCollapsed && (
+                <span className="text-sm">จัดการประเภทอาหาร</span>
+              )}
             </Link>
-              
           </li>
           {/* อาหาร */}
           <li>
@@ -123,6 +124,19 @@ export default function Sidebar({
               {!isCollapsed && <span className="text-sm">จัดการอาหาร</span>}
             </Link>
           </li>
+          <li>
+            <Link
+              href="/backoffice/slide"
+              className={`flex items-center p-2 rounded hover:bg-white hover:text-gray-700 ${
+                isCollapsed ? "justify-center" : ""
+              }`}
+              onClick={onClose}
+            >
+              <i className="fa-solid fa-images mr-2"></i>
+              {!isCollapsed && <span className="text-sm">จัดการภาพสไลด์</span>}
+            </Link>
+          </li>
+
           <li>
             <button
               onClick={handleLogout}
