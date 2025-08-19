@@ -281,14 +281,6 @@ export default function UserPage() {
     fetchData();
   }, [fetchData, router]);
 
-  // socket refresh
-  useEffect(() => {
-    socket.on("new_user", () => fetchData(false));
-    return () => {
-      socket.off("new_user");
-    };
-  }, [fetchData]);
-
   /* ======================= Permission helpers ======================= */
   const canEditOrChange = (target: User) => {
     if (!currentUser) return false;
@@ -477,6 +469,73 @@ export default function UserPage() {
       }
     });
   };
+  // socket realtime for users
+useEffect(() => {
+  if (!socket.connected) socket.connect();
+
+  // (ไม่จำเป็น แต่ทำให้จัดกลุ่มง่าย ถ้าภายหลังอยาก emit เป็นห้อง)
+  socket.emit("join", "users");
+
+  const refetch = () => fetchData(false);
+
+  // สร้าง/แก้ไขข้อมูลผู้ใช้ -> refetch เพื่อให้ roles/safe mapping ถูกต้องเสมอ
+const onCreated = () => refetch();
+const onUpdated = () => refetch();
+const onNewUser = () => refetch();
+
+  // เปลี่ยนสถานะ -> อัปเดตในที่เดียว ไม่ต้อง refetch ทั้งหมด
+  const onStatusUpdated = ({ user_id, user_status }: { user_id: number; user_status: number }) => {
+    setUsers(prev => prev.map(u => (u.user_id === user_id ? { ...u, user_status } : u)));
+  };
+
+  // เปลี่ยนสิทธิ์ -> อัปเดต roles/isAdmin/isStaff
+  const onRolesUpdated = ({
+    user_id,
+    roles,
+  }: {
+    user_id: number;
+    roles: ("admin" | "staff" | "user")[];
+  }) => {
+    setUsers(prev =>
+      prev.map(u =>
+        u.user_id === user_id
+          ? {
+              ...u,
+              roles,
+              isAdmin: roles.includes("admin"),
+              isStaff: roles.includes("staff"),
+            }
+          : u
+      )
+    );
+  };
+
+  // ลบผู้ใช้ -> ลบออกจากตาราง
+  const onDeleted = ({ user_id }: { user_id: number }) => {
+    setUsers(prev => prev.filter(u => u.user_id !== user_id));
+  };
+
+  socket.on("user:created", onCreated);
+  socket.on("user:updated", onUpdated);
+  socket.on("user:status_updated", onStatusUpdated);
+  socket.on("user:roles_updated", onRolesUpdated);
+  socket.on("user:deleted", onDeleted);
+  socket.on("new_user", onNewUser); // backward-compatible
+
+  // debug ถ้าต้องการดูอีเวนต์ที่เข้ามา
+  // socket.onAny((event, ...args) => console.log("[socket]", event, args));
+
+  return () => {
+    socket.off("user:created", onCreated);
+    socket.off("user:updated", onUpdated);
+    socket.off("user:status_updated", onStatusUpdated);
+    socket.off("user:roles_updated", onRolesUpdated);
+    socket.off("user:deleted", onDeleted);
+    socket.off("new_user", onNewUser);
+    socket.emit("leave", "users");
+  };
+}, [fetchData]);
+
 
   /* ======================= Columns ======================= */
   const columns: ColumnDef<User>[] = [
