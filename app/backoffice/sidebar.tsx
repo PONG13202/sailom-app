@@ -72,6 +72,19 @@ export default function Sidebar({
               {!isCollapsed && <span className="text-sm">แดชบอร์ด</span>}
             </Link>
           </li>
+          {/* เวลาการจอง */}
+            <li>
+              <Link
+                href="/backoffice/time"
+                className={`flex items-center p-2 rounded hover:bg-white hover:text-gray-700 ${
+                  isCollapsed ? "justify-center" : ""
+                }`}
+                onClick={onClose}
+              >
+                <i className="fa-solid fa-clock mr-2"></i>
+                {!isCollapsed && <span className="text-sm">ตารางเวลาการจอง</span>}
+              </Link>
+            </li>
           <li>
             <Link
               href="/backoffice/user"
@@ -136,7 +149,19 @@ export default function Sidebar({
               {!isCollapsed && <span className="text-sm">จัดการภาพสไลด์</span>}
             </Link>
           </li>
-
+          {/* เกี่ยวกับ */}
+          <li>
+            <Link
+              href="/backoffice/about"
+              className={`flex items-center p-2 rounded hover:bg-white hover:text-gray-700 ${
+                isCollapsed ? "justify-center" : ""
+              }`}
+              onClick={onClose}
+            >
+              <i className="fa-solid fa-info mr-2"></i>
+              {!isCollapsed && <span className="text-sm">เกี่ยวกับเรา</span>}
+            </Link>
+          </li>
           <li>
             <button
               onClick={handleLogout}
