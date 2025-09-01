@@ -85,6 +85,19 @@ export default function Sidebar({
                 {!isCollapsed && <span className="text-sm">ตารางเวลาการจอง</span>}
               </Link>
             </li>
+            {/* บิล */}
+            <li>
+              <Link
+                href="/backoffice/order"
+                className={`flex items-center p-2 rounded hover:bg-white hover:text-gray-700 ${
+                  isCollapsed ? "justify-center" : ""
+                }`}
+                onClick={onClose}
+              >
+                <i className="fa-solid fa-receipt mr-2"></i>
+                {!isCollapsed && <span className="text-sm">บิล</span>}
+              </Link>
+            </li>
           <li>
             <Link
               href="/backoffice/user"
