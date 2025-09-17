@@ -1,6 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect,useMemo } from "react";
 import Sidebar from "../backoffice/sidebar";
 import axios from "axios";
 import { config } from "../config";
@@ -18,6 +18,44 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     user_fname: "",
     user_lname: "",
   });
+  // --- วางไว้ในไฟล์เดียวกัน (layout) ก็ได้ ---
+function ClockThai({ className }: { className?: string }) {
+  const [mounted, setMounted] = useState(false);
+  const [now, setNow] = useState<Date | null>(null);
+
+  // ให้ SSR/first render เหมือนกันทุกครั้ง
+  useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    setNow(new Date()); // set ครั้งแรกหลัง mount
+    const id = setInterval(() => setNow(new Date()), 1000); // หรือ 60000 ถ้าอยากอัปเดตทุกนาที
+    return () => clearInterval(id);
+  }, [mounted]);
+
+  const formatted = useMemo(() => {
+    if (!now) return "—"; // placeholder ที่ SSR/Client ตรงกัน
+    return new Intl.DateTimeFormat("th-TH-u-ca-gregory", {
+      timeZone: "Asia/Bangkok",
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    }).format(now);
+  }, [now]);
+
+  // suppressHydrationWarning ป้องกันเตือนถ้าข้อความถูกเปลี่ยนหลัง hydration
+  return (
+    <span className={className} suppressHydrationWarning>
+      {formatted}
+    </span>
+  );
+}
+
 
   useEffect(() => {
     const fetchUserAndCheckToken = async () => {
@@ -40,10 +78,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           },
         });
         setUser(res.data);
-      } catch (err) {
+      } catch (err: unknown) {
         Swal.fire({
           icon: "error",
-          title: "หมดเวลาการใช้งาน",
+          title: "หมดเวลาการใช้งาน" + err,
           text: "กรุณาเข้าสู่ระบบใหม่อีกครั้ง",
           showConfirmButton: false,
           timer: 2000,
@@ -77,12 +115,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             localStorage.removeItem("tempToken");
             router.replace("/");
           }
-        } catch (err) {
+        } catch (err: unknown) {
           localStorage.removeItem("token");
           localStorage.removeItem("tempToken");
           Swal.fire({
             icon: "error",
-            title: "หมดเวลาการใช้งาน",
+            title: "หมดเวลาการใช้งาน" + err,
             text: "กรุณาเข้าสู่ระบบใหม่อีกครั้ง",
             showConfirmButton: false,
             timer: 2000,
@@ -120,46 +158,44 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         isCollapsed={sidebarCollapsed}
         onClose={() => setSidebarOpen(false)}
       />
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0  bg-opacity-50 z-20 md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+{sidebarOpen && (
+  <div
+    className="fixed left-0 right-0 bottom-0 top-16 bg-black/30 z-20 md:hidden"
+    onClick={() => setSidebarOpen(false)}
+  />
+)}
+
       <div
         className={`flex flex-col flex-1 transition-all duration-300 ${
           sidebarCollapsed ? "md:ml-0" : "md:ml-0"
         }`}
       >
-        <header className="bg-blue-900 text-white p-4 flex items-center fixed top-0 left-0 right-0 z-30">
-          <button
-            onClick={handleBurgerClick}
-            aria-label="เปิด/ปิดเมนู"
-            className="text-2xl mr-2"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              className="w-8 h-8"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 6h16M4 12h16M4 18h16"
-              />
-            </svg>
-          </button>
-          <h1 className="ml-2 text-xl font-semibold">Dashboard</h1>
-          <div className="text-sm md:text-base absolute right-4">
-            ยินดีต้อนรับ{" "}
-            <span className="font-bold text-yellow-500">
-              {user.user_fname} {user.user_lname}
-            </span>
-          </div>
-        </header>
+<header className="bg-blue-900 text-white h-16 px-4 flex items-center fixed top-0 left-0 right-0 z-30">
+  <button
+    onClick={handleBurgerClick}
+    aria-label="เปิด/ปิดเมนู"
+    className="text-2xl mr-2"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="w-8 h-8">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/>
+    </svg>
+  </button>
+
+  {/* ขวาสุด: เวลา + ต้อนรับ (บรรทัดเดียว, ไม่ตัดบรรทัด) */}
+  <div className="ml-auto flex items-center gap-3 text-xs sm:text-sm md:text-base min-w-0">
+    <span className="font-medium whitespace-nowrap" suppressHydrationWarning>
+      <ClockThai />
+    </span>
+    <span aria-hidden className="h-5 w-px bg-white/30" />
+    <span className="whitespace-nowrap truncate">
+      ยินดีต้อนรับ{" "}
+      <span className="font-bold text-yellow-300">
+        {user.user_fname} {user.user_lname}
+      </span>
+    </span>
+  </div>
+</header>
+
         <main className="flex-1 pt-16 p-4 ">{children}</main>
       </div>
     </div>

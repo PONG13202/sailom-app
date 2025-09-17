@@ -1,5 +1,4 @@
 // C:\Users\pong1\OneDrive\เอกสาร\End-Pro\sailom\app\backoffice\time\page.tsx
-
 "use client";
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
@@ -52,6 +51,7 @@ type ResvRow = {
   user: { id: number; name: string; phone?: string | null };
   orderId?: number | null;
   paymentId?: number | null;
+  depositAmount?: number;
 };
 
 type PaymentRow = {
@@ -77,7 +77,7 @@ type OrderItem = {
 type OrderRow = {
   id: number;
   total: number;
-  status: "PENDING" | "CONFIRMED" | "CANCELED";
+  status: "PENDING" | "CONFIRMED" | "CANCELED" | "RESERVATION_ONLY";
   items: OrderItem[];
   paymentId?: number | null;
 };
@@ -147,6 +147,86 @@ const STATUS_META: Record<string, { label: string; pill: string; cell: string }>
   },
 };
 
+// ---- Thai timezone helpers ----
+const TZ = "Asia/Bangkok";
+const TH_OFFSET = "+07:00";
+
+// ปฏิทิน "สากล (Gregorian)" + โซนไทย
+const fmt = {
+  time: (v: string | number | Date) =>
+    new Intl.DateTimeFormat("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+      timeZone: TZ,
+    }).format(new Date(v)),
+  date: (v: string | number | Date) =>
+    new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      timeZone: TZ,
+    }).format(new Date(v)),
+  datetime: (v: string | number | Date) =>
+    new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+      timeZone: TZ,
+    }).format(new Date(v)),
+  dmySpaces: (v: string | number | Date) =>
+    new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      timeZone: TZ,
+    })
+      .format(new Date(v))
+      .replace(/\//g, " "),
+};
+
+// YYYY-MM-DD ตามโซนไทย (ใช้กับ input type="date" และ API)
+const thaiYMD = (d: Date) =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+
+// ให้ได้ epoch ของ "วันที่เลือก + เวลา HH:mm" ในโซนไทย
+const thBoundaryMs = (dateStr: string, hhmm: string) =>
+  +new Date(`${dateStr}T${hhmm}:00${TH_OFFSET}`);
+
+// เช็คว่า ISO นี้ “เป็นวันเดียวกัน” กับ dateStr เมื่อมองในโซนไทย
+const isSameThaiDate = (iso: string, dateStr: string) => {
+  const d = new Date(iso);
+  const ymd = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+  return ymd === dateStr;
+};
+
+// ปัดลง/ปัดขึ้นตาม step (นาที)
+const floorToStep = (d: Date, step: number) => {
+  const m = Math.floor(d.getMinutes() / step) * step;
+  d.setMinutes(m, 0, 0);
+  return d;
+};
+const ceilToStep = (d: Date, step: number) => {
+  const m = Math.ceil(d.getMinutes() / step) * step;
+  d.setMinutes(m, 0, 0);
+  return d;
+};
+const toHHmm = (d: Date) =>
+  `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+
 function statusCellColor(st?: string) {
   if (!st) return "bg-white";
   return STATUS_META[st]?.cell ?? "bg-violet-200";
@@ -168,7 +248,14 @@ const ensureEnd = (startIso: string, endIso?: string | null) =>
 
 /** -------------------- Page -------------------- */
 export default function SchedulePage() {
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  // ตั้งค่า date เป็นวันไทยจริง (ไม่โดน UTC)
+  const [date, setDate] = useState<string>("");
+  useEffect(() => {
+    const ymd = thaiYMD(new Date());
+    setDate(ymd);
+    latestDateRef.current = ymd;
+  }, []);
+
   const [openTime, setOpenTime] = useState("09:00");
   const [closeTime, setCloseTime] = useState("22:00");
   const [step, setStep] = useState(30);
@@ -207,13 +294,12 @@ export default function SchedulePage() {
   const mountedRef = useRef(true);
   const latestDateRef = useRef(date);
   const throttleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // เพิ่มในส่วน Helpers ด้านบนไฟล์
-const imgUrl = (u?: string | null) => {
-  if (!u) return "";
-  if (u.startsWith("http") || u.startsWith("data:")) return u;
-  return `${config.apiUrl}${u.startsWith("/") ? u : `/${u}`}`;
-};
 
+  const imgUrl = (u?: string | null) => {
+    if (!u) return "";
+    if (u.startsWith("http") || u.startsWith("data:")) return u;
+    return `${config.apiUrl}${u.startsWith("/") ? u : `/${u}`}`;
+  };
 
   useEffect(() => {
     mountedRef.current = true;
@@ -222,33 +308,67 @@ const imgUrl = (u?: string | null) => {
       if (throttleTimerRef.current) clearTimeout(throttleTimerRef.current);
     };
   }, []);
+
+  // sync latest date
   useEffect(() => {
-    latestDateRef.current = date;
+    if (date) latestDateRef.current = date;
   }, [date]);
+
+  // ถ้ามีการจองอยู่นอกช่วง ให้ขยายช่วงเวลา (อิงโซนไทย)
+  useEffect(() => {
+    if (loading || !date) return;
+    const dayRows = rows.filter((r) => isSameThaiDate(r.start, date));
+    if (dayRows.length === 0) return;
+
+    const earliestMs = Math.min(...dayRows.map((r) => +new Date(r.start)));
+    const latestEndMs = Math.max(
+      ...dayRows.map((r) => +new Date(ensureEnd(r.start, r.end)))
+    );
+
+    const curOpenMs = thBoundaryMs(date, openTime);
+    const curCloseMs = thBoundaryMs(date, closeTime);
+
+    let nextOpen = openTime;
+    let nextClose = closeTime;
+
+    if (earliestMs < curOpenMs) nextOpen = toHHmm(floorToStep(new Date(earliestMs), step));
+    if (latestEndMs > curCloseMs) nextClose = toHHmm(ceilToStep(new Date(latestEndMs), step));
+
+    if (nextOpen !== openTime) setOpenTime(nextOpen);
+    if (nextClose !== closeTime) setCloseTime(nextClose);
+  }, [rows, date, step, loading, openTime, closeTime]);
 
   /** ------------ fetch day + orders (ควบคุม spinner) ------------ */
   const fetchDayOrders = useCallback(
     async (d: string, baseRows: ResvRow[], showSpinner: boolean) => {
+      const reservationOnly: DayOrderRow[] = (baseRows || [])
+        .filter((r) => !r.orderId)
+        .map((r) => ({
+          id: -r.id,
+          total: r.depositAmount ?? 0,
+          status: "RESERVATION_ONLY" as any,
+          items: [],
+          paymentId: r.paymentId ?? null,
+          reservationId: r.id,
+          tableLabel: r.tableLabel,
+          start: r.start,
+          userName: r.user?.name,
+        }));
+
       if (showSpinner) setOrdersLoading(true);
       const headers: Record<string, string> = { "Cache-Control": "no-store", ...authHeader() };
       try {
         let orders: OrderRow[] | null = null;
-
-        // พยายามยิง /orders?date= ก่อน
         try {
           const { data } = await axios.get(`${config.apiUrl}/orders`, {
             params: { date: d },
             headers,
           });
           orders = (data?.data ?? null) as OrderRow[] | null;
-        } catch {
-          // fallback
-        }
+        } catch {}
 
         if (!orders) {
-          const ids = Array.from(
-            new Set(baseRows.map((r) => r.orderId).filter(Boolean))
-          ) as number[];
+          const ids = Array.from(new Set(baseRows.map((r) => r.orderId).filter(Boolean))) as number[];
           const list = await Promise.all(
             ids.map((id) =>
               axios
@@ -265,8 +385,8 @@ const imgUrl = (u?: string | null) => {
           if (r.orderId) byOrderId.set(r.orderId, r);
         });
 
-        const enriched: DayOrderRow[] = (orders || [])
-          .map((o) => {
+        const enriched: DayOrderRow[] = [
+          ...(orders || []).map((o) => {
             const rr = o.id ? byOrderId.get(o.id) : undefined;
             return {
               ...o,
@@ -275,12 +395,13 @@ const imgUrl = (u?: string | null) => {
               start: rr?.start,
               userName: rr?.user?.name,
             };
-          })
-          .sort((a, b) => {
-            const ta = a.start ? +new Date(a.start) : 0;
-            const tb = b.start ? +new Date(b.start) : 0;
-            return ta - tb;
-          });
+          }),
+          ...reservationOnly,
+        ].sort((a, b) => {
+          const ta = a.start ? +new Date(a.start) : 0;
+          const tb = b.start ? +new Date(b.start) : 0;
+          return ta - tb;
+        });
 
         if (mountedRef.current) setDayOrders(enriched);
       } finally {
@@ -292,6 +413,7 @@ const imgUrl = (u?: string | null) => {
 
   const fetchDay = useCallback(
     async (d: string, opts?: { showSpinner?: boolean }) => {
+      if (!d) return;
       const showSpinner = opts?.showSpinner !== false;
       if (showSpinner) setLoading(true);
       const headers: Record<string, string> = { "Cache-Control": "no-store", ...authHeader() };
@@ -302,7 +424,6 @@ const imgUrl = (u?: string | null) => {
         });
         const list = (data?.data ?? []) as ResvRow[];
         if (mountedRef.current) setRows(list);
-        // โหลดออเดอร์ของวันเดียวกัน (ตามผลจองล่าสุด)
         await fetchDayOrders(d, list, showSpinner);
       } finally {
         if (showSpinner && mountedRef.current) setLoading(false);
@@ -313,7 +434,7 @@ const imgUrl = (u?: string | null) => {
 
   // ครั้งแรก & เวลาเปลี่ยนวัน → ใช้ spinner
   useEffect(() => {
-    fetchDay(date, { showSpinner: true });
+    if (date) fetchDay(date, { showSpinner: true });
   }, [date, fetchDay]);
 
   /** ------------ realtime (socket) เงียบๆไม่กระพริบ ------------ */
@@ -322,13 +443,12 @@ const imgUrl = (u?: string | null) => {
     throttleTimerRef.current = setTimeout(async () => {
       throttleTimerRef.current = null;
       const d = latestDateRef.current;
-      await fetchDay(d, { showSpinner: false }); // ไม่โชว์ skeleton → ไม่กระพริบ
+      await fetchDay(d, { showSpinner: false });
     }, 250);
   }, [fetchDay]);
 
   useEffect(() => {
     if (!socket.connected) socket.connect();
-
     const handler = () => throttledSilentRefresh();
     const events = [
       "reservation:created",
@@ -338,7 +458,6 @@ const imgUrl = (u?: string | null) => {
       "reservation:canceled",
       "payment:succeeded",
     ] as const;
-
     events.forEach((ev) => socket.on(ev, handler));
     return () => {
       events.forEach((ev) => socket.off(ev, handler));
@@ -419,7 +538,6 @@ const imgUrl = (u?: string | null) => {
         setActiveOrder(null);
         setActivePayment(null);
 
-        // API ฝั่งหลังบ้านปรับ select ชื่อฟิลด์ user แล้ว
         const resv = await axios
           .get(`${config.apiUrl}/reservation/${resvId}`, {
             headers: { ...authHeader(), "Cache-Control": "no-store" },
@@ -442,7 +560,12 @@ const imgUrl = (u?: string | null) => {
               status: inRow.status,
               orderId: inRow.orderId ?? null,
               paymentId: inRow.paymentId ?? null,
-              user: { id: inRow.user.id, name: inRow.user.name, phone: inRow.user.phone ?? null, email: null },
+              user: {
+                id: inRow.user.id,
+                name: inRow.user.name,
+                phone: inRow.user.phone ?? null,
+                email: null,
+              },
             }
           : null;
 
@@ -486,9 +609,54 @@ const imgUrl = (u?: string | null) => {
       );
       await loadReservationDetail(activeResv!.id);
       await fetchDay(latestDateRef.current, { showSpinner: false });
-      await Swal.fire({ icon: "success", title: "ยืนยันรับชำระแล้ว", timer: 1400, showConfirmButton: false });
+      await Swal.fire({
+        icon: "success",
+        title: "ยืนยันรับชำระแล้ว",
+        timer: 1400,
+        showConfirmButton: false,
+      });
     } catch (e: any) {
-      await Swal.fire({ icon: "error", title: "ยืนยันชำระไม่สำเร็จ", text: e?.response?.data?.message || "" });
+      await Swal.fire({
+        icon: "error",
+        title: "ยืนยันชำระไม่สำเร็จ",
+        text: e?.response?.data?.message || "",
+      });
+    }
+  };
+
+  const confirmReservationDirect = async () => {
+    if (!activeResv?.id) return;
+
+    const ok = await Swal.fire({
+      icon: "question",
+      title: "ยืนยันการจองโต๊ะนี้?",
+      text: "กรณีนี้จะยืนยันโดยไม่ผูกกับบิลอาหาร",
+      showCancelButton: true,
+      confirmButtonText: "ยืนยัน",
+      cancelButtonText: "ยกเลิก",
+    });
+    if (!ok.isConfirmed) return;
+
+    try {
+      await axios.post(
+        `${config.apiUrl}/reservations/${activeResv.id}/confirm`,
+        {},
+        { headers: { ...authHeader() } }
+      );
+      await loadReservationDetail(activeResv.id);
+      await fetchDay(latestDateRef.current, { showSpinner: false });
+      await Swal.fire({
+        icon: "success",
+        title: "ยืนยันการจองแล้ว",
+        timer: 1300,
+        showConfirmButton: false,
+      });
+    } catch (e: any) {
+      await Swal.fire({
+        icon: "error",
+        title: "ยืนยันไม่สำเร็จ",
+        text: e?.response?.data?.message || "",
+      });
     }
   };
 
@@ -506,9 +674,18 @@ const imgUrl = (u?: string | null) => {
       setEditMode(false);
       await loadReservationDetail(activeResv!.id);
       await fetchDay(latestDateRef.current, { showSpinner: false });
-      await Swal.fire({ icon: "success", title: "บันทึกบิลสำเร็จ", timer: 1400, showConfirmButton: false });
+      await Swal.fire({
+        icon: "success",
+        title: "บันทึกบิลสำเร็จ",
+        timer: 1400,
+        showConfirmButton: false,
+      });
     } catch (e: any) {
-      await Swal.fire({ icon: "error", title: "บันทึกบิลไม่สำเร็จ", text: e?.response?.data?.message || "" });
+      await Swal.fire({
+        icon: "error",
+        title: "บันทึกบิลไม่สำเร็จ",
+        text: e?.response?.data?.message || "",
+      });
     }
   };
 
@@ -532,49 +709,83 @@ const imgUrl = (u?: string | null) => {
       );
       await fetchDay(latestDateRef.current, { showSpinner: false });
       setDetailOpen(false);
-      await Swal.fire({ icon: "success", title: "ยกเลิกสำเร็จ", timer: 1400, showConfirmButton: false });
+      await Swal.fire({
+        icon: "success",
+        title: "ยกเลิกสำเร็จ",
+        timer: 1400,
+        showConfirmButton: false,
+      });
     } catch (e: any) {
-      await Swal.fire({ icon: "error", title: "ยกเลิกไม่สำเร็จ", text: e?.response?.data?.message || "" });
+      await Swal.fire({
+        icon: "error",
+        title: "ยกเลิกไม่สำเร็จ",
+        text: e?.response?.data?.message || "",
+      });
     }
   };
 
   /** ------------ UI ------------ */
   return (
-    <main className="p-6 space-y-4">
+    <main className="p-4 sm:p-5 md:p-6 space-y-4 max-w-screen-2xl mx-auto">
       {/* Topbar */}
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold">ตารางการจอง</h1>
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <h1 className="text-lg sm:text-xl font-semibold">ตารางการจอง</h1>
 
         <div className="flex items-center gap-2 rounded-xl border bg-white px-2 py-1">
           <div className="relative">
             <Input
               type="date"
+              lang="en-GB" // บังคับแสดง dd/mm/yyyy (Gregorian) ใน date picker
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="h-9 pr-9"
+              className="h-8 sm:h-9 pr-8 text-sm"
             />
-            <IconCalendar className="absolute right-2 top-2.5 h-4 w-4 text-slate-500" />
+            <IconCalendar className="absolute right-2 top-2 h-4 w-4 text-slate-500" />
           </div>
 
-          <select value={openTime} onChange={(e) => setOpenTime(e.target.value)} className="h-9 rounded-md border px-2 text-sm">
-            {["07:00", "08:00", "09:00", "10:00", "11:00"].map((t) => <option key={t} value={t}>เปิด {t}</option>)}
-          </select>
-          <select value={closeTime} onChange={(e) => setCloseTime(e.target.value)} className="h-9 rounded-md border px-2 text-sm">
-            {["20:00", "21:00", "22:00", "23:00"].map((t) => <option key={t} value={t}>ปิด {t}</option>)}
-          </select>
-          <select value={step} onChange={(e) => setStep(parseInt(e.target.value, 10))} className="h-9 rounded-md border px-2 text-sm">
-            {[15, 30, 60].map((m) => <option key={m} value={m}>{m} นาที/ช่อง</option>)}
+          <select
+            value={openTime}
+            onChange={(e) => setOpenTime(e.target.value)}
+            className="h-8 sm:h-9 rounded-md border px-2 text-sm"
+          >
+            {Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, "0")}:00`).map((t) => (
+              <option key={t} value={t}>
+                เปิด {t}
+              </option>
+            ))}
           </select>
 
-          <Button variant="outline" size="sm" className="h-9" onClick={() => fetchDay(date, { showSpinner: true })}>
+          <select
+            value={closeTime}
+            onChange={(e) => setCloseTime(e.target.value)}
+            className="h-8 sm:h-9 rounded-md border px-2 text-sm"
+          >
+            {Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, "0")}:00`).map((t) => (
+              <option key={t} value={t}>
+                ปิด {t}
+              </option>
+            ))}
+          </select>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 sm:h-9"
+            onClick={() => fetchDay(date, { showSpinner: true })}
+          >
             <RefreshCw className="mr-2 h-4 w-4" /> รีเฟรช
           </Button>
         </div>
 
         <div className="ml-auto flex items-center gap-2">
           <Filter className="h-4 w-4 text-slate-500" />
-          <Input placeholder="ค้นหาโต๊ะ…" className="h-9 w-44" value={qTable} onChange={(e) => setQTable(e.target.value)} />
-          <div className="flex flex-wrap gap-2">
+          <Input
+            placeholder="ค้นหาโต๊ะ…"
+            className="h-8 sm:h-9 w-40 sm:w-44"
+            value={qTable}
+            onChange={(e) => setQTable(e.target.value)}
+          />
+          <div className="flex flex-wrap gap-1.5 sm:gap-2">
             {Object.entries(STATUS_META).map(([key, meta]) => {
               const on = showStatus[key] ?? false;
               return (
@@ -582,7 +793,12 @@ const imgUrl = (u?: string | null) => {
                   key={key}
                   type="button"
                   onClick={() => setShowStatus((p) => ({ ...p, [key]: !on }))}
-                  className={cn("rounded-full border px-2.5 py-1 text-xs transition", on ? meta.pill : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50")}
+                  className={cn(
+                    "rounded-full border px-2 py-0.5 text-[11px] sm:text-xs transition",
+                    on
+                      ? meta.pill
+                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                  )}
                   title={meta.label}
                 >
                   {meta.label}
@@ -609,21 +825,28 @@ const imgUrl = (u?: string | null) => {
       </Card>
 
       {/* Grid */}
-      <Card className="p-3 overflow-x-auto shadow-sm">
+      <Card className="p-2 sm:p-3 overflow-x-auto shadow-sm">
         {loading ? (
-          <div className="p-10">
-            <div className="h-6 w-48 animate-pulse rounded bg-slate-200" />
-            <div className="mt-4 grid gap-2">
-              {[...Array(4)].map((_, i) => (<div key={i} className="h-8 animate-pulse rounded bg-slate-100" />))}
+          <div className="p-8">
+            <div className="h-5 w-40 animate-pulse rounded bg-slate-200" />
+            <div className="mt-3 grid gap-2">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-7 animate-pulse rounded bg-slate-100" />
+              ))}
             </div>
           </div>
         ) : grid.tables.length === 0 ? (
-          <div className="p-10 text-center text-slate-500">ไม่มีข้อมูลการจองในวันที่เลือก</div>
+          <div className="p-8 text-center text-slate-500">ไม่มีข้อมูลการจองในวันที่เลือก</div>
         ) : (
-          <div className="min-w-[1100px]">
+          <div className="min-w-[720px]">
             {/* header */}
-            <div className="grid text-xs" style={{ gridTemplateColumns: `220px repeat(${grid.slots.length}, 1fr)` }}>
-              <div className="sticky left-0 z-10 bg-white p-2 font-medium border-b rounded-l">โต๊ะ / เวลา</div>
+            <div
+              className="grid text-[11px] sm:text-xs"
+              style={{ gridTemplateColumns: `160px repeat(${grid.slots.length}, 1fr)` }}
+            >
+              <div className="sticky left-0 z-10 bg-white p-2 font-medium border-b rounded-l">
+                โต๊ะ / เวลา
+              </div>
               {grid.slots.map((s) => (
                 <div key={s.idx} className="p-2 text-center border-b text-slate-600">
                   {s.label}
@@ -633,20 +856,34 @@ const imgUrl = (u?: string | null) => {
 
             {/* rows */}
             {grid.tables.map((t, rowIdx) => (
-              <div key={t.tableId} className="grid" style={{ gridTemplateColumns: `220px repeat(${grid.slots.length}, 1fr)` }}>
-                <div className={cn("sticky left-0 z-10 p-2 border-b font-medium", rowIdx % 2 ? "bg-slate-50" : "bg-white")}>{t.label}</div>
+              <div
+                key={t.tableId}
+                className="grid"
+                style={{ gridTemplateColumns: `160px repeat(${grid.slots.length}, 1fr)` }}
+              >
+                <div
+                  className={cn(
+                    "sticky left-0 z-10 p-2 border-b font-medium text-sm",
+                    rowIdx % 2 ? "bg-slate-50" : "bg-white"
+                  )}
+                >
+                  {t.label}
+                </div>
                 {grid.slots.map((s) => {
                   const st = (t as any).byStatus.get(s.idx) as string | undefined;
-                  const title = st ? `${t.label} • ${s.label} — ${STATUS_META[st]?.label ?? st}` : `${t.label} • ${s.label}`;
+                  const title = st
+                    ? `${t.label} • ${s.label} — ${STATUS_META[st]?.label ?? st}`
+                    : `${t.label} • ${s.label}`;
                   return (
                     <button
                       key={s.idx}
                       title={title}
                       onClick={() => st && openSlotDetail(t.tableId as number, s.idx)}
                       className={cn(
-                        "h-8 border-b border-r transition",
+                        "h-7 sm:h-8 border-b border-r transition",
                         rowIdx % 2 ? "bg-slate-50/60" : "bg-white",
-                        st && "outline-none hover:brightness-95 focus-visible:ring-2 focus-visible:ring-violet-400",
+                        st &&
+                          "outline-none hover:brightness-95 focus-visible:ring-2 focus-visible:ring-violet-400",
                         statusCellColor(st)
                       )}
                     />
@@ -667,49 +904,69 @@ const imgUrl = (u?: string | null) => {
       {/* ===== ตารางออเดอร์ทั้งหมดของวันนี้ ===== */}
       <Card className="p-3 shadow-sm">
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">ออเดอร์ทั้งหมดของ {new Date(date).toLocaleDateString("th-TH")}</h2>
-          <div className="text-xs text-slate-500">{ordersLoading ? "กำลังโหลด…" : `${dayOrders.length} ออเดอร์`}</div>
+          <h2 className="text-sm font-semibold">
+            ออเดอร์ทั้งหมดของ{" "}
+            {fmt.dmySpaces(new Date(`${date || thaiYMD(new Date())}T00:00:00${TH_OFFSET}`))}
+          </h2>
+          <div className="text-xs text-slate-500">
+            {ordersLoading ? "กำลังโหลด…" : `${dayOrders.length} ออเดอร์`}
+          </div>
         </div>
 
         {ordersLoading ? (
           <div className="grid gap-2">
-            {[...Array(3)].map((_, i) => <div key={i} className="h-8 animate-pulse rounded bg-slate-100" />)}
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-8 animate-pulse rounded bg-slate-100" />
+            ))}
           </div>
         ) : dayOrders.length === 0 ? (
           <div className="p-6 text-center text-slate-500 text-sm">ยังไม่มีออเดอร์ในวันนี้</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-[900px] w-full text-sm">
+            <table className="min-w-[720px] w-full text-sm">
               <thead className="bg-slate-50">
                 <tr className="text-left">
-                  <th className="px-3 py-2 w-28">เวลา</th>
-                  <th className="px-3 py-2 w-40">โต๊ะ</th>
-                  <th className="px-3 py-2 w-48">ลูกค้า</th>
+                  <th className="px-3 py-2 w-24">เวลา</th>
+                  <th className="px-3 py-2 w-36">โต๊ะ</th>
+                  <th className="px-3 py-2 w-44">ลูกค้า</th>
                   <th className="px-3 py-2">รายการ</th>
-                  <th className="px-3 py-2 text-right w-32">รวม (บาท)</th>
-                  <th className="px-3 py-2 w-32">สถานะบิล</th>
-                  <th className="px-3 py-2 w-32">การทำงาน</th>
+                  <th className="px-3 py-2 text-right w-28">รวม (บาท)</th>
+                  <th className="px-3 py-2 w-28">สถานะบิล</th>
+                  <th className="px-3 py-2 w-28">การทำงาน</th>
                 </tr>
               </thead>
               <tbody>
                 {dayOrders.map((o) => {
-                  const timeLabel = o.start ? new Date(o.start).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : "-";
-                  const itemsPreview = o.items.slice(0, 2).map((it) => `${it.name} x${it.qty}`).join(", ");
+                  const timeLabel = o.start ? fmt.time(o.start) : "-";
+                  const itemsPreview = o.items
+                    .slice(0, 2)
+                    .map((it) => `${it.name} x${it.qty}`)
+                    .join(", ");
                   const more = o.items.length > 2 ? ` +${o.items.length - 2}` : "";
                   return (
                     <tr key={o.id} className="border-t">
                       <td className="px-3 py-2">{timeLabel}</td>
                       <td className="px-3 py-2">{o.tableLabel || "-"}</td>
                       <td className="px-3 py-2">{o.userName || "-"}</td>
-                      <td className="px-3 py-2">{itemsPreview}{more}</td>
+                      <td className="px-3 py-2">
+                        {itemsPreview}
+                        {more}
+                      </td>
                       <td className="px-3 py-2 text-right">{money(o.total)}</td>
                       <td className="px-3 py-2">
-                        <span className={cn("rounded-full border px-2 py-0.5 text-xs",
-                          o.status === "CONFIRMED" ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-                          : o.status === "PENDING" ? "bg-amber-100 text-amber-700 border-amber-200"
-                          : "bg-slate-100 text-slate-600 border-slate-200"
-                        )}>
-                          {o.status}
+                        <span
+                          className={cn(
+                            "rounded-full border px-2 py-0.5 text-xs",
+                            o.status === "CONFIRMED"
+                              ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                              : o.status === "PENDING"
+                              ? "bg-amber-100 text-amber-700 border-amber-200"
+                              : o.status === "RESERVATION_ONLY"
+                              ? "bg-violet-100 text-violet-700 border-violet-200"
+                              : "bg-slate-100 text-slate-600 border-slate-200"
+                          )}
+                        >
+                          {o.status === "RESERVATION_ONLY" ? "จองโต๊ะ" : o.status}
                         </span>
                       </td>
                       <td className="px-3 py-2">
@@ -718,10 +975,10 @@ const imgUrl = (u?: string | null) => {
                             size="sm"
                             variant="outline"
                             onClick={async () => {
-                              setDetail({ tableId: 0, slotIdx: 0 }); // ให้มี context
+                              setDetail({ tableId: 0, slotIdx: 0 });
                               setDetailOpen(true);
                               await loadReservationDetail(o.reservationId!);
-                              setTab("order"); // สลับไปแท็บบิลหลังโหลดแล้ว
+                              setTab(o.status === "RESERVATION_ONLY" ? "payment" : "order");
                             }}
                           >
                             ดูบิล
@@ -736,7 +993,12 @@ const imgUrl = (u?: string | null) => {
                                 html: `
                                   <div style="text-align:left">
                                     ${(o.items || [])
-                                      .map((it) => `<div>${it.name} × ${it.qty} — ${money(it.price * it.qty)} บาท</div>`)
+                                      .map(
+                                        (it) =>
+                                          `<div>${it.name} × ${it.qty} — ${money(
+                                            it.price * it.qty
+                                          )} บาท</div>`
+                                      )
                                       .join("")}
                                     <hr />
                                     <div><b>รวม ${money(o.total)} บาท</b></div>
@@ -761,9 +1023,11 @@ const imgUrl = (u?: string | null) => {
 
       {/* Detail dialog */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="sm:max-w-3xl bg-white p-0 overflow-hidden rounded-2xl border">
+        <DialogContent className="sm:max-w-[720px] bg-white p-0 overflow-hidden rounded-2xl border">
           <DialogHeader className="px-4 pt-4">
-            <DialogTitle className="text-base font-semibold">รายละเอียดการจองในช่วงเวลา</DialogTitle>
+            <DialogTitle className="text-base font-semibold">
+              รายละเอียดการจองในช่วงเวลา
+            </DialogTitle>
           </DialogHeader>
 
           <div className="px-4 pb-4">
@@ -773,7 +1037,10 @@ const imgUrl = (u?: string | null) => {
               <>
                 <div className="mb-3 text-sm text-slate-700 flex items-center gap-3">
                   <Clock className="h-4 w-4" />
-                  <span>ช่วงช่อง: {grid.slots[detail.slotIdx]?.label} – {grid.slots[detail.slotIdx + 1]?.label ?? closeTime}</span>
+                  <span>
+                    ช่วงช่อง: {grid.slots[detail.slotIdx]?.label} –{" "}
+                    {grid.slots[detail.slotIdx + 1]?.label ?? closeTime}
+                  </span>
                 </div>
 
                 {adminReadyInfo && (
@@ -786,12 +1053,13 @@ const imgUrl = (u?: string | null) => {
                           : "bg-emerald-50 text-emerald-700 border-emerald-200"
                       )}
                     >
-                      {adminReadyInfo.busy ? "ไม่พร้อม (มีการยืนยัน)" : "พร้อม (ไม่มีการยืนยันคาบนี้)"}
+                      {adminReadyInfo.busy
+                        ? "ไม่พร้อม (มีการยืนยัน)"
+                        : "พร้อม (ไม่มีการยืนยันคาบนี้)"}
                     </span>
                     {adminReadyInfo.busy && adminReadyInfo.readyAt && (
                       <span className="text-slate-600">
-                        พร้อมให้จองอีกครั้งประมาณ{" "}
-                        {adminReadyInfo.readyAt.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
+                        พร้อมให้จองอีกครั้งประมาณ {fmt.time(adminReadyInfo.readyAt)}
                       </span>
                     )}
                   </div>
@@ -817,10 +1085,20 @@ const imgUrl = (u?: string | null) => {
                   ) : (
                     <div className="space-y-2">
                       {slotReservations.map((r) => (
-                        <div key={r.id} className="rounded-lg border p-3 hover:bg-slate-50 transition">
+                        <div
+                          key={r.id}
+                          className="rounded-lg border p-3 hover:bg-slate-50 transition"
+                        >
                           <div className="flex items-center justify-between">
-                            <div className="font-medium">{r.user.name || `User #${r.user.id}`}</div>
-                            <span className={cn("rounded-full border px-2 py-0.5 text-xs", STATUS_META[r.status]?.pill)}>
+                            <div className="font-medium">
+                              {r.user.name || `User #${r.user.id}`}
+                            </div>
+                            <span
+                              className={cn(
+                                "rounded-full border px-2 py-0.5 text-xs",
+                                STATUS_META[r.status]?.pill
+                              )}
+                            >
                               {STATUS_META[r.status]?.label ?? r.status}
                             </span>
                           </div>
@@ -829,12 +1107,21 @@ const imgUrl = (u?: string | null) => {
                             <Users className="h-3.5 w-3.5" />
                             <span>{r.people} คน</span>
                             <Clock className="ml-2 h-3.5 w-3.5" />
-                            <span>เริ่ม {new Date(r.start).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}</span>
-                            {r.user.phone ? <span className="ml-2">โทร {r.user.phone}</span> : null}
+                            <span>เริ่ม {fmt.time(r.start)}</span>
+                            {r.user.phone ? (
+                              <span className="ml-2">โทร {r.user.phone}</span>
+                            ) : null}
                           </div>
 
                           <div className="mt-3 flex gap-2">
-                            <Button size="sm" variant="outline" onClick={async () => { await loadReservationDetail(r.id); setTab("info"); }}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={async () => {
+                                await loadReservationDetail(r.id);
+                                setTab("info");
+                              }}
+                            >
                               <Receipt className="mr-2 h-4 w-4" />
                               ดูรายละเอียด/บิล
                             </Button>
@@ -852,9 +1139,39 @@ const imgUrl = (u?: string | null) => {
               <div className="mt-4 rounded-xl border bg-slate-50 p-3">
                 {/* tabs */}
                 <div className="flex items-center gap-2 mb-3">
-                  <button className={cn("rounded-full px-3 py-1 text-xs border", tab === "info" ? "bg-white border-slate-300" : "bg-slate-100 border-transparent hover:bg-slate-200")} onClick={() => setTab("info")}>ข้อมูลการจอง</button>
-                  <button className={cn("rounded-full px-3 py-1 text-xs border", tab === "order" ? "bg-white border-slate-300" : "bg-slate-100 border-transparent hover:bg-slate-200")} onClick={() => setTab("order")}>ออเดอร์/บิล</button>
-                  <button className={cn("rounded-full px-3 py-1 text-xs border", tab === "payment" ? "bg-white border-slate-300" : "bg-slate-100 border-transparent hover:bg-slate-200")} onClick={() => setTab("payment")}>การชำระเงิน</button>
+                  <button
+                    className={cn(
+                      "rounded-full px-3 py-1 text-xs border",
+                      tab === "info"
+                        ? "bg-white border-slate-300"
+                        : "bg-slate-100 border-transparent hover:bg-slate-200"
+                    )}
+                    onClick={() => setTab("info")}
+                  >
+                    ข้อมูลการจอง
+                  </button>
+                  <button
+                    className={cn(
+                      "rounded-full px-3 py-1 text-xs border",
+                      tab === "order"
+                        ? "bg-white border-slate-300"
+                        : "bg-slate-100 border-transparent hover:bg-slate-200"
+                    )}
+                    onClick={() => setTab("order")}
+                  >
+                    ออเดอร์/บิล
+                  </button>
+                  <button
+                    className={cn(
+                      "rounded-full px-3 py-1 text-xs border",
+                      tab === "payment"
+                        ? "bg-white border-slate-300"
+                        : "bg-slate-100 border-transparent hover:bg-slate-200"
+                    )}
+                    onClick={() => setTab("payment")}
+                  >
+                    การชำระเงิน
+                  </button>
                   <div className="ml-auto text-xs text-slate-600">#{activeResv.id}</div>
                 </div>
 
@@ -864,23 +1181,27 @@ const imgUrl = (u?: string | null) => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                     <div className="rounded-md bg-white border p-3">
                       <div className="text-slate-500">ลูกค้า</div>
-                      <div className="font-medium">{activeResv.user?.name || `User #${activeResv.userId}`}</div>
-                      {activeResv.user?.phone ? <div className="text-slate-600">โทร {activeResv.user.phone}</div> : null}
+                      <div className="font-medium">
+                        {activeResv.user?.name || `User #${activeResv.userId}`}
+                      </div>
+                      {activeResv.user?.phone ? (
+                        <div className="text-slate-600">โทร {activeResv.user.phone}</div>
+                      ) : null}
                     </div>
                     <div className="rounded-md bg-white border p-3">
                       <div className="text-slate-500">โต๊ะ</div>
-                      <div className="font-medium">{activeResv.tableLabel || activeResv.tableId || "-"}</div>
+                      <div className="font-medium">
+                        {activeResv.tableLabel || activeResv.tableId || "-"}
+                      </div>
                     </div>
                     <div className="rounded-md bg-white border p-3">
                       <div className="text-slate-500">เวลาเริ่ม</div>
-                      <div className="font-medium">
-                        {new Date(activeResv.dateStart).toLocaleString("th-TH", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", year: "numeric" })}
-                      </div>
+                      <div className="font-medium">{fmt.datetime(activeResv.dateStart)}</div>
                     </div>
                     <div className="rounded-md bg-white border p-3">
                       <div className="text-slate-500">โดยประมาณสิ้นสุด</div>
                       <div className="font-medium">
-                        {new Date(ensureEnd(activeResv.dateStart, activeResv.dateEnd || undefined)).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
+                        {fmt.time(ensureEnd(activeResv.dateStart, activeResv.dateEnd || undefined))}
                       </div>
                     </div>
                     <div className="rounded-md bg-white border p-3">
@@ -889,7 +1210,12 @@ const imgUrl = (u?: string | null) => {
                     </div>
                     <div className="rounded-md bg-white border p-3">
                       <div className="text-slate-500">สถานะ</div>
-                      <span className={cn("mt-1 inline-block rounded-full border px-2 py-0.5 text-xs", STATUS_META[activeResv.status]?.pill)}>
+                      <span
+                        className={cn(
+                          "mt-1 inline-block rounded-full border px-2 py-0.5 text-xs",
+                          STATUS_META[activeResv.status]?.pill
+                        )}
+                      >
                         {STATUS_META[activeResv.status]?.label || activeResv.status}
                       </span>
                     </div>
@@ -901,7 +1227,12 @@ const imgUrl = (u?: string | null) => {
                       <Button variant="outline" size="sm" onClick={() => setTab("payment")}>
                         <CircleDollarSign className="mr-2 h-4 w-4" /> ดูการชำระเงิน
                       </Button>
-                      <Button variant="destructive" size="sm" className="ml-auto" onClick={cancelReservation}>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="ml-auto"
+                        onClick={cancelReservation}
+                      >
                         <Ban className="mr-2 h-4 w-4" /> ยกเลิกการจอง
                       </Button>
                     </div>
@@ -916,15 +1247,35 @@ const imgUrl = (u?: string | null) => {
                           <div className="text-sm font-medium">บิล #{activeOrder.id}</div>
                           <div className="flex gap-2">
                             {!editMode ? (
-                              <Button size="sm" variant="outline" onClick={() => { setEditItems(activeOrder.items); setEditMode(true); }}>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setEditItems(activeOrder.items);
+                                  setEditMode(true);
+                                }}
+                              >
                                 <Pencil className="mr-2 h-4 w-4" /> แก้ไขบิล
                               </Button>
                             ) : (
                               <>
-                                <Button size="sm" onClick={saveEditedOrder} className="bg-emerald-600 hover:bg-emerald-700">
+                                <Button
+                                  size="sm"
+                                  onClick={saveEditedOrder}
+                                  className="bg-emerald-600 hover:bg-emerald-700"
+                                >
                                   <Save className="mr-2 h-4 w-4" /> บันทึกบิล
                                 </Button>
-                                <Button size="sm" variant="outline" onClick={() => { setEditItems(activeOrder.items); setEditMode(false); }}>ยกเลิก</Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setEditItems(activeOrder.items);
+                                    setEditMode(false);
+                                  }}
+                                >
+                                  ยกเลิก
+                                </Button>
                               </>
                             )}
                           </div>
@@ -947,19 +1298,65 @@ const imgUrl = (u?: string | null) => {
                                   <td className="px-3 py-2">{idx + 1}</td>
                                   <td className="px-3 py-2">
                                     <div className="font-medium">{it.name}</div>
-                                    {it.note ? <div className="text-xs text-slate-500">โน้ต: {it.note}</div> : null}
+                                    {it.note ? (
+                                      <div className="text-xs text-slate-500">โน้ต: {it.note}</div>
+                                    ) : null}
                                   </td>
                                   <td className="px-3 py-2 text-right">{money(it.price)}</td>
                                   <td className="px-3 py-2 text-center">
                                     {editMode ? (
                                       <div className="inline-flex items-center gap-2">
-                                        <button className="h-7 w-7 rounded border bg-slate-50" onClick={() => setEditItems((prev) => prev.map((x) => x.id === it.id ? { ...x, qty: Math.max(1, x.qty - 1) } : x))}>-</button>
-                                        <Input type="number" value={it.qty} onChange={(e) => setEditItems((prev) => prev.map((x) => x.id === it.id ? { ...x, qty: Math.max(1, Number(e.target.value || 1)) } : x))} className="h-7 w-16 text-center" />
-                                        <button className="h-7 w-7 rounded border bg-slate-50" onClick={() => setEditItems((prev) => prev.map((x) => x.id === it.id ? { ...x, qty: x.qty + 1 } : x))}>+</button>
+                                        <button
+                                          className="h-7 w-7 rounded border bg-slate-50"
+                                          onClick={() =>
+                                            setEditItems((prev) =>
+                                              prev.map((x) =>
+                                                x.id === it.id
+                                                  ? { ...x, qty: Math.max(1, x.qty - 1) }
+                                                  : x
+                                              )
+                                            )
+                                          }
+                                        >
+                                          -
+                                        </button>
+                                        <Input
+                                          type="number"
+                                          value={it.qty}
+                                          onChange={(e) =>
+                                            setEditItems((prev) =>
+                                              prev.map((x) =>
+                                                x.id === it.id
+                                                  ? {
+                                                      ...x,
+                                                      qty: Math.max(1, Number(e.target.value || 1)),
+                                                    }
+                                                  : x
+                                              )
+                                            )
+                                          }
+                                          className="h-7 w-16 text-center"
+                                        />
+                                        <button
+                                          className="h-7 w-7 rounded border bg-slate-50"
+                                          onClick={() =>
+                                            setEditItems((prev) =>
+                                              prev.map((x) =>
+                                                x.id === it.id ? { ...x, qty: x.qty + 1 } : x
+                                              )
+                                            )
+                                          }
+                                        >
+                                          +
+                                        </button>
                                       </div>
-                                    ) : it.qty}
+                                    ) : (
+                                      it.qty
+                                    )}
                                   </td>
-                                  <td className="px-3 py-2 text-right">{money(it.price * it.qty)}</td>
+                                  <td className="px-3 py-2 text-right">
+                                    {money(it.price * it.qty)}
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>
@@ -967,7 +1364,16 @@ const imgUrl = (u?: string | null) => {
                         </div>
 
                         <div className="text-right text-sm">
-                          รวมทั้งสิ้น <b>{money((editMode ? editItems : activeOrder.items).reduce((a, c) => a + c.price * c.qty, 0))} บาท</b>
+                          รวมทั้งสิ้น{" "}
+                          <b>
+                            {money(
+                              (editMode ? editItems : activeOrder.items).reduce(
+                                (a, c) => a + c.price * c.qty,
+                                0
+                              )
+                            )}{" "}
+                            บาท
+                          </b>
                         </div>
                       </>
                     )}
@@ -979,17 +1385,21 @@ const imgUrl = (u?: string | null) => {
                     ) : (
                       <>
                         <div className="flex items-center justify-between">
-                          <div className="text-sm font-medium">การชำระเงิน #{activePayment.id}</div>
-                          <span className={cn(
-                            "rounded-full border px-2 py-0.5 text-xs",
-                            activePayment.status === "PAID"
-                              ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-                              : activePayment.status === "SUBMITTED"
-                              ? "bg-blue-100 text-blue-700 border-blue-200"
-                              : activePayment.status === "PENDING"
-                              ? "bg-amber-100 text-amber-700 border-amber-200"
-                              : "bg-slate-100 text-slate-600 border-slate-200"
-                          )}>
+                          <div className="text-sm font-medium">
+                            การชำระเงิน #{activePayment.id}
+                          </div>
+                          <span
+                            className={cn(
+                              "rounded-full border px-2 py-0.5 text-xs",
+                              activePayment.status === "PAID"
+                                ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                                : activePayment.status === "SUBMITTED"
+                                ? "bg-blue-100 text-blue-700 border-blue-200"
+                                : activePayment.status === "PENDING"
+                                ? "bg-amber-100 text-amber-700 border-amber-200"
+                                : "bg-slate-100 text-slate-600 border-slate-200"
+                            )}
+                          >
                             {activePayment.status}
                           </span>
                         </div>
@@ -1002,34 +1412,63 @@ const imgUrl = (u?: string | null) => {
                           <div className="rounded-md bg-white border p-3">
                             <div className="text-slate-500">หมดอายุ QR</div>
                             <div className="font-medium">
-                              {activePayment.expiresAt ? new Date(activePayment.expiresAt).toLocaleString("th-TH") : "-"}
+                              {activePayment.expiresAt ? fmt.datetime(activePayment.expiresAt) : "-"}
                             </div>
                           </div>
                         </div>
 
-{activePayment.slipImage ? (
-  <div className="rounded-md border bg-white p-3">
-    <div className="text-sm font-medium mb-2">สลิปที่อัปโหลด</div>
-    <a href={imgUrl(activePayment.slipImage)} target="_blank" rel="noreferrer" className="block">
-      <Image
-        src={imgUrl(activePayment.slipImage)}
-        alt="slip"
-        width={50}
-        height={50}
-        sizes="100px"
-        className="rounded-md border object-contain cursor-zoom-in hover:opacity-90 transition"
-      />
-    </a>
-    <div className="text-xs text-slate-500 mt-2">คลิกเพื่อเปิดภาพเต็มในแท็บใหม่</div>
-  </div>
-) : null}
-
+                        {activePayment.slipImage ? (
+                          <div className="rounded-md border bg-white p-3">
+                            <div className="text-sm font-medium mb-2">สลิปที่อัปโหลด</div>
+                            <a
+                              href={imgUrl(activePayment.slipImage)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="block"
+                            >
+                              <Image
+                                src={imgUrl(activePayment.slipImage)}
+                                alt="slip"
+                                width={50}
+                                height={50}
+                                sizes="100px"
+                                className="rounded-md border object-contain cursor-zoom-in hover:opacity-90 transition"
+                              />
+                            </a>
+                            <div className="text-xs text-slate-500 mt-2">
+                              คลิกเพื่อเปิดภาพเต็มในแท็บใหม่
+                            </div>
+                          </div>
+                        ) : null}
 
                         <div className="flex gap-2">
-                          <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={confirmPayment} disabled={activePayment.status === "PAID"}>
-                            ยืนยันรับชำระ
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => loadReservationDetail(activeResv!.id)}>
+                          {activePayment ? (
+                            <Button
+                              size="sm"
+                              className="bg-emerald-600 hover:bg-emerald-700"
+                              onClick={confirmPayment}
+                              disabled={activePayment.status === "PAID"}
+                            >
+                              ยืนยันรับชำระ
+                            </Button>
+                          ) : (
+                            !activeOrder &&
+                            activeResv?.status !== "CONFIRMED" && (
+                              <Button
+                                size="sm"
+                                className="bg-emerald-600 hover:bg-emerald-700"
+                                onClick={confirmReservationDirect}
+                              >
+                                ยืนยันการจอง (ไม่รับมัดจำ)
+                              </Button>
+                            )
+                          )}
+
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => loadReservationDetail(activeResv!.id)}
+                          >
                             รีเฟรชสถานะ
                           </Button>
                         </div>
