@@ -10,6 +10,7 @@ import { socket } from "@/app/socket";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Buffer } from "buffer";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import {
+   FileDown,
   RefreshCw,
   Filter,
   Receipt,
@@ -50,12 +52,19 @@ type OrderRow = {
   items: OrderItem[];
   paymentId?: number | null;
   createdAt?: string;
-  // optional fields from backend joins
   reservationId?: number | null;
   tableLabel?: string | null;
-  start?: string | null; // reservation start
-  user?: { id: number; name: string; phone?: string | null };
+  start?: string | null;
+  user?: {
+    id: number;
+    fname?: string | null;
+    lname?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    img?: string | null;
+  };
 };
+
 
 type PaymentRow = {
   id: number;
@@ -92,6 +101,119 @@ const PAY_BADGE: Record<string, string> = {
   EXPIRED: "bg-slate-100 text-slate-600 border-slate-200",
   CANCELED: "bg-rose-100 text-rose-700 border-rose-200",
 };
+const userFullName = (u?: { fname?: string | null; lname?: string | null }) => {
+  if (!u) return "-";
+  return [u.fname, u.lname].filter(Boolean).join(" ").trim() || "-";
+};
+
+// ===== PDF helpers =====
+const toTHDateTime = (iso?: string | null) =>
+  iso ? new Date(iso).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" }) : "-";
+
+async function loadThaiFont(doc: any) {
+  const res = await fetch("/fonts/Prompt-Regular.ttf");
+  if (!res.ok) {
+    console.error("ไม่พบไฟล์ฟอนต์", res.status);
+    return;
+  }
+  const buf = await res.arrayBuffer();
+  const b64 = Buffer.from(buf).toString("base64");
+
+  doc.addFileToVFS("Prompt-Regular.ttf", b64);
+  doc.addFont("Prompt-Regular.ttf", "Prompt", "normal");
+  doc.setFont("Prompt");
+}
+
+function moneyTH(n?: number | null) {
+  return `${Number(n || 0).toLocaleString("th-TH")} บาท`;
+}
+
+// ===== สร้าง PDF พร้อมข้อมูลลูกค้า =====
+async function downloadOrderPdf(order: OrderRow, pay: PaymentRow | null) {
+  const { jsPDF } = await import("jspdf");
+  const autoTable = (await import("jspdf-autotable")).default;
+
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  await loadThaiFont(doc);
+
+  const M = 48;
+  let y = 56;
+
+  doc.setFontSize(16);
+  doc.text("SaiLom — รายงานบิลสั่งอาหาร", M, y);
+  y += 24;
+
+  // กล่องข้อมูลบิล + ลูกค้า
+  doc.setFontSize(11);
+  doc.roundedRect(M, y, 520, 72, 6, 6, "S");
+  let gy = y + 22;
+  doc.text(`เลขที่บิล: #${order.id}`, M + 16, gy);          gy += 18;
+  doc.text(`เวลา: ${toTHDateTime(order.createdAt || order.start)}`, M + 16, gy); gy += 18;
+  doc.text(`โต๊ะ: ${order.tableLabel || "-"}`, M + 16, gy);
+
+  let ry = y + 22;
+  doc.text(`ชื่อลูกค้า: ${userFullName(order.user) || "User #" + order.userId}`, M + 280, ry); ry += 18;
+  doc.text(`เบอร์: ${order.user?.phone || "-"}`, M + 280, ry);                   ry += 18;
+  doc.text(`สถานะบิล: ${order.status}`, M + 280, ry);
+
+  y += 96;
+
+  // ตารางรายการ
+  const rows = (order.items || []).map((it, i) => [
+    String(i + 1),
+    it.name + (it.note ? ` (โน้ต: ${it.note})` : ""),
+    moneyTH(it.price),
+    String(it.qty),
+    moneyTH(it.price * it.qty),
+  ]);
+
+autoTable(doc, {
+  startY: y,
+  head: [["#", "รายการ", "ต่อหน่วย", "จำนวน", "รวม"]],
+  body: rows,
+  styles: {
+    font: "Prompt",        // ใช้ Prompt ที่คุณโหลดมา
+    fontSize: 11,
+    cellPadding: 6,
+  },
+  headStyles: {
+    fillColor: [241, 245, 249],
+    textColor: [15, 23, 42],
+    font: "Prompt",        // <<< ต้องใส่ตรงนี้ด้วย
+    fontStyle: "normal"
+  },
+  bodyStyles: {
+    font: "Prompt",        // <<< บังคับ body ใช้ Prompt ด้วย
+    fontStyle: "normal"
+  },
+  columnStyles: {
+    0: { halign: "center", cellWidth: 28 },
+    1: { cellWidth: 290 },
+    2: { halign: "right", cellWidth: 90 },
+    3: { halign: "center", cellWidth: 60 },
+    4: { halign: "right", cellWidth: 90 },
+  },
+  theme: "grid",
+});
+
+  const sum = (order.items || []).reduce((a, c) => a + c.price * c.qty, 0);
+  let endY = (doc as any).lastAutoTable?.finalY || y;
+
+  // สรุปยอด + สถานะชำระ
+  endY += 16;
+  doc.roundedRect(M, endY, 520, 70, 6, 6, "S");
+  let sy = endY + 24;
+  doc.text(`รวมทั้งสิ้น: ${moneyTH(sum)}`, M + 16, sy); sy += 18;
+  if (pay) {
+    doc.text(`สถานะชำระ: ${pay.status}`, M + 16, sy); sy += 18;
+    if (pay.confirmedAt) doc.text(`ยืนยันเมื่อ: ${toTHDateTime(pay.confirmedAt)}`, M + 16, sy);
+  } else {
+    doc.text(`สถานะชำระ: -`, M + 16, sy);
+  }
+
+  doc.save(`Order_${order.id}.pdf`);
+}
+
 
 /** -------------------- Page -------------------- */
 export default function BackofficeOrdersPage() {
@@ -238,7 +360,7 @@ const confirmLabel = (p: PaymentRow) =>
       const s = [
         `#${o.id}`,
         o.tableLabel || "",
-        o.user?.name || "",
+        o.user?.fname || "",
         (o.items || []).map((it) => it.name).join(", "),
       ].join(" ").toLowerCase();
       return s.includes(kw);
@@ -341,7 +463,7 @@ const confirmLabel = (p: PaymentRow) =>
       <div>
         <h3>บิล #${o.id}</h3>
         <div>เวลา: ${fmtDT(o.createdAt || o.start)}</div>
-        <div>ลูกค้า: ${o.user?.name || "-"}</div>
+        <div>ลูกค้า: ${o.user?.fname} ${o.user?.lname || "-"}</div>
         <div>โต๊ะ: ${o.tableLabel || "-"}</div>
         <hr />
         ${(o.items || [])
@@ -473,10 +595,10 @@ const confirmLabel = (p: PaymentRow) =>
           <RefreshCw className="mr-2 h-4 w-4" /> รีเฟรช
         </Button>
         <div className="flex gap-1 ml-1">
-          <Button size="sm" variant="secondary" onClick={() => quickSetRange("all")}>ทั้งหมด</Button>
-          <Button size="sm" variant="secondary" onClick={() => quickSetRange("today")}>วันนี้</Button>
-          <Button size="sm" variant="secondary" onClick={() => quickSetRange("7d")}>7 วัน</Button>
-          <Button size="sm" variant="secondary" onClick={() => quickSetRange("month")}>เดือนนี้</Button>
+<Button size="sm" variant="secondary" onClick={() => quickSetRange("all")}>ทั้งหมด</Button>
+<Button size="sm" variant="info" onClick={() => quickSetRange("today")}>วันนี้</Button>
+<Button size="sm" variant="warning" onClick={() => quickSetRange("7d")}>7 วัน</Button>
+<Button size="sm" variant="default" onClick={() => quickSetRange("month")}>เดือนนี้</Button>
         </div>
       </div>
 
@@ -521,7 +643,7 @@ const confirmLabel = (p: PaymentRow) =>
                     <td className="px-3 py-2 font-medium">#{o.id}</td>
                     <td className="px-3 py-2">{fmtDT(o.createdAt || o.start)}</td>
                     <td className="px-3 py-2">{o.tableLabel || "-"}</td>
-                    <td className="px-3 py-2">{o.user?.name || "-"}</td>
+                    <td className="px-3 py-2">{userFullName(o.user)}</td>
                     <td className="px-3 py-2">{itemsPreview}{more}</td>
                     <td className="px-3 py-2 text-right">{money(o.total)}</td>
                     <td className="px-3 py-2">
@@ -536,34 +658,37 @@ const confirmLabel = (p: PaymentRow) =>
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex flex-wrap gap-2">
-                        <Button size="sm" variant="outline" onClick={() => openDetail(o)}>
-                          <Receipt className="mr-2 h-4 w-4" /> ดู/แก้ไข
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => printOrder(o)}>
-                          <Printer className="mr-2 h-4 w-4" /> พิมพ์
-                        </Button>
-                        {o.status !== "CONFIRMED" && (
-                          <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => changeOrderStatus(o, "CONFIRMED")}>
-                            <CheckCircle2 className="mr-2 h-4 w-4" /> ยืนยัน
-                          </Button>
-                        )}
-                        {o.status !== "CANCELED" && (
-                          <Button size="sm" variant="destructive" onClick={() => changeOrderStatus(o, "CANCELED")}>
-                            <XCircle className="mr-2 h-4 w-4" /> ยกเลิก
-                          </Button>
-                        )}
-                        {o.status !== "PENDING" && (
-                          <Button size="sm" variant="outline" onClick={() => changeOrderStatus(o, "PENDING")}>
-                            <Pencil className="mr-2 h-4 w-4" /> เปลี่ยนเป็นร่าง
-                          </Button>
-                        )}
-                        {pay && pay.status !== "CANCELED" && (
-                          <Button size="sm" variant="outline" onClick={() => cancelPayment(pay.id)}>
-                            <XCircle className="mr-2 h-4 w-4" /> ยกเลิกจ่าย
-                          </Button>
-                        )}
+<Button size="sm" variant="outline" onClick={() => openDetail(o)}>
+  <Receipt className="mr-2 h-4 w-4" /> ดู/แก้ไข
+</Button>
+<Button size="sm" variant="outline" onClick={() => printOrder(o)}>
+  <Printer className="mr-2 h-4 w-4" /> พิมพ์
+</Button>
+<Button
+  size="sm"
+  variant="outline"
+  onClick={() => downloadOrderPdf(o, o.paymentId ? paymentsMap.get(o.paymentId) ?? null : null)}
+>
+  <FileDown className="mr-2 h-4 w-4" /> PDF
+</Button>
+
+{o.status !== "CONFIRMED" && (
+  <Button size="sm" variant="success" onClick={() => changeOrderStatus(o, "CONFIRMED")}>
+    <CheckCircle2 className="mr-2 h-4 w-4" /> ยืนยัน
+  </Button>
+)}
+{o.status !== "PENDING" && (
+  <Button size="sm" variant="outline" onClick={() => changeOrderStatus(o, "PENDING")}>
+    <Pencil className="mr-2 h-4 w-4" /> รอชำระ
+  </Button>
+)}
+{o.status !== "CANCELED" && (
+  <Button size="sm" variant="destructive" onClick={() => changeOrderStatus(o, "CANCELED")}>
+    <XCircle className="mr-2 h-4 w-4" /> ยกเลิก
+  </Button>
+)}
 {canConfirmPay(pay) && (
-  <Button size="sm" variant="outline" onClick={() => confirmPayment(pay!.id)}>
+  <Button size="sm" variant="success" onClick={() => confirmPayment(pay!.id)}>
     <CircleDollarSign className="mr-2 h-4 w-4" /> {confirmLabel(pay!)}
   </Button>
 )}
@@ -624,7 +749,7 @@ const confirmLabel = (p: PaymentRow) =>
                 </div>
                 <div className="text-sm">
                   <div className="text-slate-500">ลูกค้า</div>
-                  <div className="font-medium">{active.user?.name || `User #${active.userId}`}</div>
+                  <div className="font-medium">{userFullName(active.user) || `User #${active.userId}`}</div>
                 </div>
                 <div className="ml-auto text-sm">
                   <span className={cn("rounded-full border px-2 py-0.5 text-xs", ORDER_BADGE[active.status])}>{active.status}</span>
@@ -635,20 +760,22 @@ const confirmLabel = (p: PaymentRow) =>
               <div className="rounded-lg border bg-white overflow-hidden">
                 <div className="flex items-center justify-between px-3 py-2 bg-slate-50">
                   <div className="text-sm font-medium">รายละเอียดรายการอาหาร</div>
-                  {!editMode ? (
-                    <Button size="sm" variant="outline" onClick={() => { setEditItems(active.items || []); setEditMode(true); }}>
-                      <Pencil className="mr-2 h-4 w-4" /> แก้ไข
-                    </Button>
-                  ) : (
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={saveEditedOrder} className="bg-emerald-600 hover:bg-emerald-700">
-                        <Save className="mr-2 h-4 w-4" /> บันทึก
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => { setEditItems(active.items || []); setEditMode(false); }}>
-                        ยกเลิก
-                      </Button>
-                    </div>
-                  )}
+{/* แถบแก้ไขรายการ */}
+{!editMode ? (
+  <Button size="sm" variant="outline" onClick={() => { setEditItems(active.items || []); setEditMode(true); }}>
+    <Pencil className="mr-2 h-4 w-4" /> แก้ไข
+  </Button>
+) : (
+  <div className="flex gap-2">
+    <Button size="sm" variant="success" onClick={saveEditedOrder}>
+      <Save className="mr-2 h-4 w-4" /> บันทึก
+    </Button>
+    <Button size="sm" variant="outline" onClick={() => { setEditItems(active.items || []); setEditMode(false); }}>
+      ยกเลิก
+    </Button>
+  </div>
+)}
+
                 </div>
 
                 <table className="w-full text-sm">
@@ -794,12 +921,20 @@ const confirmLabel = (p: PaymentRow) =>
                 )}
                 {active.status !== "PENDING" && (
                   <Button size="sm" variant="outline" onClick={() => changeOrderStatus(active, "PENDING")}>
-                    <Pencil className="mr-2 h-4 w-4" /> เปลี่ยนเป็นร่าง
+                    <Pencil className="mr-2 h-4 w-4" /> รอชำระ
                   </Button>
                 )}
                 <Button size="sm" variant="outline" onClick={() => printOrder(active)}>
                   <Printer className="mr-2 h-4 w-4" /> พิมพ์บิล
                 </Button>
+                <Button
+  size="sm"
+  variant="outline"
+  onClick={() => active && downloadOrderPdf(active, activePay)}
+>
+  <FileDown className="mr-2 h-4 w-4" /> PDF
+</Button>
+
               </div>
             </div>
           )}

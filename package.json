@@ -26,6 +26,8 @@
     "clsx": "^2.1.1",
     "dotenv": "^16.5.0",
     "framer-motion": "^12.19.2",
+    "jspdf": "^3.0.3",
+    "jspdf-autotable": "^5.0.2",
     "jwt-decode": "^4.0.0",
     "lucide-react": "^0.511.0",
     "next": "15.3.2",

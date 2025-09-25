@@ -8,7 +8,7 @@ import { PlusIcon } from "@heroicons/react/24/outline";
 import { CheckCircleIcon, XCircleIcon } from "@heroicons/react/24/solid";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
-
+import { Switch } from "@/components/ui/switch";
 import FoodCard from "../../components/ui/FoodCard";
 import { Button } from "@/components/ui/button";
 import {
@@ -160,19 +160,20 @@ export default function FoodsManagement() {
     const onMenuUpdated = () => fetchFoods();
     const onMenuDeleted = () => fetchFoods();
 
-    socket.on("menu", onMenu);
+    socket.on("menu:list", onMenu);
     socket.on("foodType", onFoodType);
-    socket.on("menu:add", onMenuAdded);
-    socket.on("menu:update", onMenuUpdated);
-    socket.on("menu:delete", onMenuDeleted);
+socket.on("menu:created", onMenuAdded);
+socket.on("menu:updated", onMenuUpdated);
+socket.on("menu:deleted", onMenuDeleted);
 
-    return () => {
-      socket.off("menu", onMenu);
-      socket.off("foodType", onFoodType);
-      socket.off("menu:add", onMenuAdded);
-      socket.off("menu:update", onMenuUpdated);
-      socket.off("menu:delete", onMenuDeleted);
-    };
+return () => {
+  socket.off("menu:list", onMenu);
+  socket.off("foodType", onFoodType);
+  socket.off("menu:created", onMenuAdded);
+  socket.off("menu:updated", onMenuUpdated);
+  socket.off("menu:deleted", onMenuDeleted);
+};
+
   }, []);
 
   /* ============================ Helpers ============================ */
@@ -261,6 +262,8 @@ export default function FoodsManagement() {
     formData.append("typefoodIds", JSON.stringify(selectedTypes));
     selectedFiles.forEach((file) => formData.append("images", file));
     if (finalMainImageIndex !== null) formData.append("mainImageIndex", finalMainImageIndex.toString());
+    formData.append("menu_status", (editingMenu?.menu_status ?? 1).toString());
+
 
     try {
       await axios.post(`${config.apiUrl}/add_menu`, formData, { headers: { "Content-Type": "multipart/form-data" } });
@@ -373,6 +376,7 @@ export default function FoodsManagement() {
     formData.append("existingImages", JSON.stringify(existingImages));
     selectedFiles.forEach((file) => formData.append("newImages", file));
     formData.append("mainImageIdentifier", finalMainImageIdentifier !== null ? String(finalMainImageIdentifier) : "");
+    formData.append("menu_status", (editingMenu?.menu_status ?? 1).toString());
 
     try {
       await axios.put(`${config.apiUrl}/update_menu/${editingMenu.menu_id}`, formData, {
@@ -642,6 +646,40 @@ export default function FoodsManagement() {
                     </Label>
                     <Textarea id="description" name="description" className="col-span-3 h-24 border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
                   </div>
+                  {/* สถานะเมนู */}
+<div className="flex items-center justify-between rounded-md border border-gray-200 bg-white/70 p-3">
+  <div className="space-y-0.5">
+    <Label htmlFor="menu_status" className="text-slate-700">
+      สถานะเมนู
+    </Label>
+    <p className="text-xs text-slate-500">
+      เปิด/ปิดการขายเมนูนี้
+    </p>
+  </div>
+  <div className="flex items-center gap-2">
+    <span className="text-sm text-slate-700">
+      {(editingMenu?.menu_status ?? 1) === 1 ? "Active" : "Inactive"}
+    </span>
+    <Switch
+      id="menu_status"
+      checked={(editingMenu?.menu_status ?? 1) === 1}
+      onCheckedChange={(checked) =>
+        setEditingMenu((prev) =>
+          prev ? { ...prev, menu_status: checked ? 1 : 0 } : { 
+            menu_id: 0,
+            menu_name: "",
+            menu_price: 0,
+            menu_status: checked ? 1 : 0,
+            MenuImages: [],
+            Typefoods: []
+          }
+        )
+      }
+      className="data-[state=checked]:bg-blue-600"
+    />
+  </div>
+</div>
+
 
                   <div className="flex justify-end pt-4 border-t border-gray-100 mt-auto">
                     <motion.button

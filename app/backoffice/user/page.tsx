@@ -126,6 +126,31 @@ export default function UserPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const router = useRouter();
+useEffect(() => {
+  const token = localStorage.getItem("token");
+  if (!token) {
+    router.replace("/");
+    return;
+  }
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    if (!payload.isAdmin) {
+      Swal.fire({
+        icon: "error",
+        title: "ไม่มีสิทธิ์เข้าถึง",
+        text: "เฉพาะแอดมินเท่านั้นที่เข้าหน้านี้ได้",
+        showConfirmButton: false,
+        timer: 2000,
+      });
+      router.replace("/backoffice/dashboard");
+    }
+  } catch {
+    router.replace("/");
+  }
+}, [router]);
+
+
+
 
   /* === helper: header สำหรับ auth === */
   const authHeader = () => {
@@ -169,7 +194,9 @@ export default function UserPage() {
 
       try {
         const response = await axios.get<ApiUserResponse[]>(
-          `${config.apiUrl}/all_user`
+          `${config.apiUrl}/all_user`,
+          { headers: authHeader() }
+
         );
 
         if (response.status === 200 && Array.isArray(response.data)) {

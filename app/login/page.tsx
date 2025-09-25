@@ -51,14 +51,22 @@ export default function LoginPage() {
     }
   };
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token && !isTokenExpired(token)) {
+useEffect(() => {
+  const token = localStorage.getItem("token");
+  if (token && !isTokenExpired(token)) {
+    const user = getUserFromToken(token);
+    const ok =
+      user?.isAdmin ||
+      user?.isStaff ||
+      (Array.isArray(user?.roles) && user.roles.some((r: string) => r === "admin" || r === "staff"));
+    if (ok) {
       router.replace("/backoffice/dashboard");
-    } else {
-      localStorage.removeItem("token");
+      return;
     }
-  }, [router]);
+  }
+  localStorage.removeItem("token");
+}, [router]);
+
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -68,45 +76,46 @@ export default function LoginPage() {
     setProfileForm({ ...profileForm, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await axios.post(`${config.apiUrl}/login`, form);
-      if (res.status === 200) {
-        const { token } = res.data;
-        localStorage.setItem("token", token);
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  try {
+    const res = await axios.post(`${config.apiUrl}/login`, form);
+    if (res.status === 200) {
+      const { token } = res.data;
+      localStorage.setItem("token", token);
 
-        const user = getUserFromToken(token);
-        if (!user?.isAdmin) {
-          Swal.fire({
-            icon: "error",
-            title: "คุณไม่ใช่แอดมิน",
-            text: "ไม่สามารถเข้าสู่ระบบหลังบ้านได้",
-            showConfirmButton: false,
-            timer: 2000,
-          });
-          localStorage.removeItem("token");
-          return;
-        }
+      const user = getUserFromToken(token);
+      const ok =
+        user?.isAdmin ||
+        user?.isStaff ||
+        (Array.isArray(user?.roles) && user.roles.some((r: string) => r === "admin" || r === "staff"));
 
-        await Swal.fire({
-          icon: "success",
-          title: "เข้าสู่ระบบสำเร็จ",
+      if (!ok) {
+        Swal.fire({
+          icon: "error",
+          title: "สิทธิ์ไม่พอ",
+          text: "เฉพาะผู้ดูแลหรือพนักงานเท่านั้น",
           showConfirmButton: false,
-          timer: 1500,
+          timer: 2000,
         });
-        router.push("/backoffice/dashboard");
+        localStorage.removeItem("token");
+        return;
       }
-    } catch (err: any) {
-      Swal.fire({
-        icon: "error",
-        title: "เกิดข้อผิดพลาด",
-        showConfirmButton: false,
-        timer: 2000,
-        text: err.response?.data?.message || "เกิดข้อผิดพลาด",
-      });
+
+      await Swal.fire({ icon: "success", title: "เข้าสู่ระบบสำเร็จ", showConfirmButton: false, timer: 1500 });
+      router.push("/backoffice/dashboard");
     }
-  };
+  } catch (err: any) {
+    Swal.fire({
+      icon: "error",
+      title: "เกิดข้อผิดพลาด",
+      showConfirmButton: false,
+      timer: 2000,
+      text: err.response?.data?.message || "เกิดข้อผิดพลาด",
+    });
+  }
+};
+
 
 const handleGoogleLoginSuccess = async (
   credentialResponse: CredentialResponse
@@ -138,29 +147,31 @@ const handleGoogleLoginSuccess = async (
               res.data.user?.user_email ?? res.data.googleUser?.email ?? "",
             user_phone: res.data.user?.user_phone ?? "",
           });
+          setMissingFields([]); // ไม่ได้ใช้จริง แต่ให้คงโครงไว้ได้
           localStorage.setItem("tempToken", res.data.tempToken);
           setOpenModal(true);
         } else {
           localStorage.setItem("token", res.data.token);
           const user = getUserFromToken(res.data.token); // Extract user from token
-          if (!user?.isAdmin) {
-            Swal.fire({
-              icon: "error",
-              title: "คุณไม่ใช่แอดมิน",
-              text: "ไม่สามารถเข้าสู่ระบบหลังบ้านได้",
-              showConfirmButton: false,
-              timer: 2000,
-            });
-            localStorage.removeItem("token");
-            return;
-          }
-          await Swal.fire({
-            icon: "success",
-            title: "เข้าสู่ระบบด้วย Google สำเร็จ",
-            showConfirmButton: false,
-            timer: 1500,
-          });
-          router.push("/backoffice/dashboard");
+if (!(user?.isAdmin || user?.isStaff)) {
+  Swal.fire({
+    icon: "error",
+    title: "สิทธิ์ไม่พอ",
+    text: "เฉพาะผู้ดูแลหรือพนักงานเท่านั้น",
+    showConfirmButton: false,
+    timer: 2000,
+  });
+  localStorage.removeItem("token");
+  return;
+}
+
+await Swal.fire({
+  icon: "success",
+  title: "เข้าสู่ระบบด้วย Google สำเร็จ",
+  showConfirmButton: false,
+  timer: 1500,
+});
+router.push("/backoffice/dashboard");
         }
       }
     }
