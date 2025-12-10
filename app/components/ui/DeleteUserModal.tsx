@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useState } from "react";
+import { useState, ReactNode } from "react"; // ✅ เพิ่ม ReactNode
 import axios from "axios";
 import Swal from "sweetalert2";
 import { config } from "../../config";
@@ -22,13 +22,15 @@ export function DeleteUserModal({
   user_fname,
   user_lname,
   onRefresh,
-  disabled = false, // ✅ รองรับปุ่มถูกปิดสิทธิ์
+  disabled = false,
+  children, // ✅ รับ children เข้ามา
 }: {
   userId: number;
   user_fname: string;
   user_lname: string;
   onRefresh: () => void;
   disabled?: boolean;
+  children?: ReactNode; // ✅ กำหนด Type
 }) {
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
@@ -66,7 +68,8 @@ export function DeleteUserModal({
       setPassword("");
       onRefresh();
     } catch (err: any) {
-      const errorMessage = err?.response?.data?.message || "เกิดข้อผิดพลาดในการลบผู้ใช้";
+      const errorMessage =
+        err?.response?.data?.message || "เกิดข้อผิดพลาดในการลบผู้ใช้";
       Swal.fire({
         title: "ผิดพลาด",
         text: `${errorMessage} ไม่สามารถลบ ${user_fname} ${user_lname} ได้`,
@@ -81,21 +84,35 @@ export function DeleteUserModal({
 
   return (
     <>
-      {/* ปุ่มทริกเกอร์: โทนแดง + disabled สวย ๆ */}
-      <Button
-        type="button"
-        aria-disabled={disabled}
-        onClick={() => {
-          if (!disabled) setOpen(true);
-        }}
-        className={`cursor-pointer font-medium rounded-lg px-4 py-2 transition-all duration-200
-          ${disabled
-            ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
-            : "bg-red-600 hover:bg-red-700 text-white hover:shadow-md"
-          }`}
-      >
-        ลบ
-      </Button>
+      {/* ✅ เช็คว่ามี children ไหม ถ้ามีให้แสดง children (Icon) ถ้าไม่มีให้แสดงปุ่มเดิม */}
+      {children ? (
+        <span
+          onClick={() => {
+            if (!disabled) setOpen(true);
+          }}
+          className={
+            disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+          }
+        >
+          {children}
+        </span>
+      ) : (
+        <Button
+          type="button"
+          aria-disabled={disabled}
+          onClick={() => {
+            if (!disabled) setOpen(true);
+          }}
+          className={`cursor-pointer font-medium rounded-lg px-4 py-2 transition-all duration-200
+            ${
+              disabled
+                ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
+                : "bg-red-600 hover:bg-red-700 text-white hover:shadow-md"
+            }`}
+        >
+          ลบ
+        </Button>
+      )}
 
       <Dialog
         open={open}
@@ -107,7 +124,11 @@ export function DeleteUserModal({
         <DialogContent className="max-w-md bg-white border border-red-100 shadow-2xl rounded-2xl p-6 sm:p-8">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3 text-2xl font-bold text-red-700">
-              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ duration: 0.3 }}>
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ duration: 0.3 }}
+              >
                 <AlertTriangle className="w-6 h-6 text-red-600" />
               </motion.div>
               ยืนยันการลบ
@@ -132,7 +153,10 @@ export function DeleteUserModal({
             </p>
 
             <div className="mt-4">
-              <Label htmlFor="password" className="text-sm font-medium text-gray-700">
+              <Label
+                htmlFor="password"
+                className="text-sm font-medium text-gray-700"
+              >
                 กรุณากรอกรหัสผ่านเพื่อยืนยัน
               </Label>
               <Input
@@ -141,7 +165,11 @@ export function DeleteUserModal({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && password.trim() !== "" && !isLoading) {
+                  if (
+                    e.key === "Enter" &&
+                    password.trim() !== "" &&
+                    !isLoading
+                  ) {
                     handleDelete();
                   }
                 }}

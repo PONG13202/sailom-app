@@ -5,6 +5,7 @@ import { TableCard } from "./TableCard";
 import { TrashDropZone } from "./TrashDropZone";
 import { useRef, useEffect, useMemo } from "react";
 
+// --- แก้ไขตรงนี้: เติมเครื่องหมาย ? หลังชื่อตัวแปรที่อาจไม่มีค่า ---
 type Table = {
   id: string;
   x: number;
@@ -13,8 +14,8 @@ type Table = {
   name: string;
   seats: number;
   tableTypeId: string;
-  tableTypeName: string;
-  additionalInfo: string;
+  tableTypeName?: string; // <--- แก้เป็น optional
+  additionalInfo?: string; // <--- แก้เป็น optional เผื่อไว้ด้วย
 };
 
 type DragItem = {
@@ -138,7 +139,7 @@ export function TableCanvas({
       {tables.map((table) => (
         <TableCard
           key={table.id}
-          table={table}
+          table={table as any}
           onSwitch={() => onTableToggleActive(table.id, !table.active)}
           onEdit={onTableEdit}
         />

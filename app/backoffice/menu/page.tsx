@@ -8,7 +8,7 @@ import { PlusIcon } from "@heroicons/react/24/outline";
 import { CheckCircleIcon, XCircleIcon } from "@heroicons/react/24/solid";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
-
+import { Variants } from "framer-motion";
 import FoodCard from "../../components/ui/FoodCard";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,7 +57,8 @@ const dialogContentVariants = {
     opacity: 1,
     scale: 1,
     y: 0,
-    transition: { duration: 0.3, ease: "easeOut" },
+    transition: { duration: 0.3, 
+      ease: "easeOut" as const },
   },
 };
 

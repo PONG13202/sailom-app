@@ -10,13 +10,20 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useState, useEffect } from "react";
+import { useState, useEffect, ReactNode } from "react"; // ✅ เพิ่ม ReactNode
 import { motion } from "framer-motion";
 import axios from "axios";
 import Swal from "sweetalert2";
 import { config } from "../../config";
 
-export function AddUserModal({ onRefresh }: { onRefresh: () => void }) {
+// ✅ เพิ่ม children?: ReactNode ใน Props
+export function AddUserModal({ 
+  onRefresh, 
+  children 
+}: { 
+  onRefresh: () => void;
+  children?: ReactNode; 
+}) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<{
     user_name: string;
@@ -78,7 +85,6 @@ export function AddUserModal({ onRefresh }: { onRefresh: () => void }) {
     try {
       setLoading(true);
 
-      // ใช้ FormData เพื่อรองรับการอัปโหลดไฟล์
       const formData = new FormData();
       formData.append("user_name", user_name);
       formData.append("user_email", user_email);
@@ -87,7 +93,7 @@ export function AddUserModal({ onRefresh }: { onRefresh: () => void }) {
       formData.append("user_lname", user_lname);
       formData.append("user_phone", user_phone);
       if (user_img) {
-        formData.append("user_img", user_img); // ชื่อ field ต้องตรงกับ backend (multer.single('user_img'))
+        formData.append("user_img", user_img);
       }
 
       await axios.post(`${config.apiUrl}/add_user`, formData, {
@@ -130,12 +136,20 @@ export function AddUserModal({ onRefresh }: { onRefresh: () => void }) {
 
   return (
     <>
-      <Button
-        onClick={() => setOpen(true)}
-        className="cursor-pointer bg-blue-600 text-white hover:bg-blue-700"
-      >
-        เพิ่มผู้ใช้
-      </Button>
+      {/* ✅ ถ้ามี children (เช่นปุ่มจากหน้า page) ให้ใช้ children เป็นตัวกดเปิด */}
+      {children ? (
+        <span onClick={() => setOpen(true)} className="cursor-pointer">
+          {children}
+        </span>
+      ) : (
+        /* ถ้าไม่มี children ให้แสดงปุ่ม default */
+        <Button
+          onClick={() => setOpen(true)}
+          className="cursor-pointer bg-blue-600 text-white hover:bg-blue-700"
+        >
+          เพิ่มผู้ใช้
+        </Button>
+      )}
 
       <Dialog
         open={open}
@@ -317,7 +331,7 @@ export function AddUserModal({ onRefresh }: { onRefresh: () => void }) {
                 </Button>
 
                 <Button
-                  type="submit" // เปลี่ยนเป็น type="submit" เพื่อ trigger onSubmit ของ form
+                  type="submit"
                   disabled={loading || !!usernameStatus}
                   className="cursor-pointer bg-blue-600 text-white hover:bg-blue-700"
                 >

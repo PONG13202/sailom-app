@@ -30,6 +30,7 @@ const CustomSwitch = React.forwardRef<
 ));
 CustomSwitch.displayName = SwitchPrimitives.Root.displayName;
 
+// ✅ แก้ไขจุดที่ 1: ใส่ ? เพื่อรองรับค่าว่าง (Optional)
 type Table = {
   id: string;
   x: number;
@@ -37,8 +38,8 @@ type Table = {
   active: boolean;
   name: string;
   seats: number;
-  tableTypeName: string;
-  additionalInfo: string;
+  tableTypeName?: string; // <--- แก้ตรงนี้
+  additionalInfo?: string; // <--- แก้ตรงนี้
 };
 
 interface TableCardProps {
@@ -65,7 +66,8 @@ export function TableCard({ table, onSwitch, onEdit }: TableCardProps) {
 
   return (
     <div
-      ref={drag}
+      // ✅ แก้ไขจุดที่ 2: ใช้ as any เพื่อแก้ปัญหา Type ของ react-dnd
+      ref={drag as any}
       className="absolute"
       style={{ left: table.x, top: table.y, opacity: isDragging ? 0.5 : 1 }}
     >
@@ -107,21 +109,8 @@ export function TableCard({ table, onSwitch, onEdit }: TableCardProps) {
             className="text-[10px] text-gray-500 leading-tight w-full truncate"
             title={table.tableTypeName}
           >
-            {table.tableTypeName}
+            {table.tableTypeName || "-"}
           </p>
-          {/* {table.additionalInfo && (
-            <p
-              className="text-[10px] text-gray-500 leading-tight w-full overflow-hidden"
-              style={{
-                display: "-webkit-box",
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: "vertical",
-              }}
-              title={table.additionalInfo}
-            >
-              {table.additionalInfo}
-            </p>
-          )} */}
         </div>
       </Card>
     </div>

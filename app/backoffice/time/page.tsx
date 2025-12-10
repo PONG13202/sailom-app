@@ -207,7 +207,7 @@ export default function SchedulePage() {
   const fetchDay = useCallback(async (d: string) => {
     try {
       setLoading(true);
-      const headers: Record<string, string> = { "Cache-Control": "no-store", ...authHeader() };
+      const headers = { "Cache-Control": "no-store", ...authHeader() };
       const { data } = await axios.get(`${config.apiUrl}/reservation`, {
         params: { date: d, includeCanceled: 0 },
         headers,
@@ -222,7 +222,8 @@ export default function SchedulePage() {
   /** ------------ fetch day orders (all) ------------ */
   const fetchDayOrders = useCallback(async (d: string, baseRows: ResvRow[]) => {
     setOrdersLoading(true);
-    const headers: Record<string, string> = { "Cache-Control": "no-store", ...authHeader() };
+    const headers = { "Cache-Control": "no-store", ...authHeader() };
+
     try {
       // ลอง endpoint ตรง /orders?date= ก่อน
       let orders: OrderRow[] | null = null;

@@ -30,7 +30,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { config } from "../../config";
 import { TableCanvas } from "../../components/TableCanvas";
-import { GRID_SIZE, findFirstFreeCellPx } from "../../components/TableCanvas";
+// import { GRID_SIZE, findFirstFreeCellPx } from "../../components/TableCanvas";
 
 interface SeatOption {
   id: string;

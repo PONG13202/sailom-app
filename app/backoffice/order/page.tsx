@@ -131,7 +131,7 @@ export default function BackofficeOrdersPage() {
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
-      const headers: Record<string, string> = { "Cache-Control": "no-store", ...authHeader() };
+      const headers = { "Cache-Control": "no-store", ...authHeader() };
       // คาดหวัง API: GET /orders?start=YYYY-MM-DD&end=YYYY-MM-DD
       const { data } = await axios.get(`${config.apiUrl}/orders`, {
         params: { start: startDate, end: endDate },
@@ -211,7 +211,7 @@ export default function BackofficeOrdersPage() {
     setEditItems([]);
     setDetailLoading(true);
     try {
-      const headers: Record<string, string> = { ...authHeader(), "Cache-Control": "no-store" };
+      const headers = { "Cache-Control": "no-store", ...authHeader() };
       const ord = await axios.get(`${config.apiUrl}/orders/${o.id}`, { headers }).then((r) => r.data as OrderRow);
       setActive(ord);
       setEditItems(ord.items || []);
@@ -228,7 +228,7 @@ export default function BackofficeOrdersPage() {
   const saveEditedOrder = async () => {
     if (!active?.id) return;
     try {
-      const headers: Record<string, string> = { ...authHeader() };
+      const headers = { "Cache-Control": "no-store", ...authHeader() };
       await axios.patch(`${config.apiUrl}/orders/${active.id}`, {
         items: editItems.map(({ id, menuId, qty, note }) => ({ id, menuId, qty, note })),
       }, { headers });
@@ -246,7 +246,7 @@ export default function BackofficeOrdersPage() {
     const r = await Swal.fire({ icon: "question", title, showCancelButton: true, confirmButtonText: "ตกลง", cancelButtonText: "ยกเลิก" });
     if (!r.isConfirmed) return;
     try {
-      const headers: Record<string, string> = { ...authHeader() };
+      const headers = { "Cache-Control": "no-store", ...authHeader() };
       await axios.patch(`${config.apiUrl}/orders/${o.id}`, { status }, { headers });
       if (active?.id === o.id) setActive({ ...(active as OrderRow), status });
       await fetchOrders();
@@ -261,7 +261,7 @@ export default function BackofficeOrdersPage() {
     const r = await Swal.fire({ icon: "question", title: "ยืนยันรับชำระ?", showCancelButton: true, confirmButtonText: "ยืนยัน", cancelButtonText: "ย้อนกลับ" });
     if (!r.isConfirmed) return;
     try {
-      const headers: Record<string, string> = { ...authHeader() };
+      const headers = { "Cache-Control": "no-store", ...authHeader() };
       await axios.post(`${config.apiUrl}/payment/${paymentId}/confirm`, {}, { headers });
       if (active?.id) await openDetail(active);
       await fetchOrders();

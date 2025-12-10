@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, ReactNode } from "react"; // เพิ่ม ReactNode
 import axios from "axios";
 import Swal from "sweetalert2";
 import { config } from "../../config";
@@ -26,14 +26,17 @@ type UserType = {
   user_phone?: string | null;
 };
 
+// เพิ่ม children?: ReactNode ใน Props
 export function EditUserModal({
   user,
   onRefresh,
   disabled = false,
+  children, 
 }: {
   user: UserType;
   onRefresh: () => void;
   disabled?: boolean;
+  children?: ReactNode;
 }) {
   const [authOpen, setAuthOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
@@ -48,12 +51,12 @@ export function EditUserModal({
   const [confirm_pass, setConfirm_pass] = useState("");
   const [usernameStatus, setUsernameStatus] = useState("");
   const [emailStatus, setEmailStatus] = useState("");
-  const [isLoading, setIsLoading] = useState(false); // เพิ่ม loading เพื่อ UX ดีขึ้น
+  const [isLoading, setIsLoading] = useState(false);
 
-const authHeader = useCallback(() => {
-  const token = localStorage.getItem("token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}, []);
+  const authHeader = useCallback(() => {
+    const token = localStorage.getItem("token");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -123,7 +126,6 @@ const authHeader = useCallback(() => {
 
     setIsLoading(true);
     try {
-      // เรียก backend เพื่อ verify รหัสผ่านจริง ๆ ก่อนเปิด form (assume endpoint /verify_password)
       await axios.post(
         `${config.apiUrl}/verify_password`,
         { password: actorPassword },
@@ -140,7 +142,7 @@ const authHeader = useCallback(() => {
         timer: 2000,
         showConfirmButton: false,
       });
-      setActorPassword(""); // clear ถ้าผิดเพื่อ security
+      setActorPassword("");
     } finally {
       setIsLoading(false);
     }
@@ -194,7 +196,7 @@ const authHeader = useCallback(() => {
       formData.append("user_phone", user_phone);
       if (user_img) formData.append("user_img", user_img);
       if (new_pass) formData.append("user_pass", new_pass);
-      formData.append("actor_password", actorPassword); // ยังส่งไป re-verify ที่ backend
+      formData.append("actor_password", actorPassword);
 
       await axios.put(`${config.apiUrl}/update_user/${user.user_id}`, formData, {
         headers: authHeader(),
@@ -224,19 +226,30 @@ const authHeader = useCallback(() => {
 
   return (
     <>
-      <Button
-        type="button"
-        aria-disabled={disabled}
-        onClick={openWithAuth}
-        className={`cursor-pointer font-medium rounded-lg px-3 py-1.5 transition-all
-          ${
-            disabled
-              ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
-              : "bg-blue-100 hover:bg-blue-200 text-blue-800 border border-blue-300 hover:shadow-sm"
-          }`}
-      >
-        แก้ไข
-      </Button>
+      {/* ถ้ามี children (เช่น Icon) ให้แสดง children และทำให้กดได้ */}
+      {children ? (
+        <span 
+          onClick={openWithAuth} 
+          className={disabled ? "pointer-events-none opacity-50" : "cursor-pointer"}
+        >
+          {children}
+        </span>
+      ) : (
+        /* ถ้าไม่มี children ให้แสดงปุ่ม Default เดิม */
+        <Button
+          type="button"
+          aria-disabled={disabled}
+          onClick={openWithAuth}
+          className={`cursor-pointer font-medium rounded-lg px-3 py-1.5 transition-all
+            ${
+              disabled
+                ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
+                : "bg-blue-100 hover:bg-blue-200 text-blue-800 border border-blue-300 hover:shadow-sm"
+            }`}
+        >
+          แก้ไข
+        </Button>
+      )}
 
       <Dialog
         open={authOpen}
@@ -278,7 +291,7 @@ const authHeader = useCallback(() => {
                   onChange={(e) => setActorPassword(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
-                      e.preventDefault(); // แก้บัค Enter โดย block event
+                      e.preventDefault();
                       handleAuthConfirm();
                     }
                   }}

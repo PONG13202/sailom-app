@@ -21,6 +21,7 @@ import {
   SortingState,
   RowData,
   FilterFn,
+  ColumnMeta,
 } from "@tanstack/react-table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -287,9 +288,9 @@ export function DataTable<TData, TValue>({
                 {row.getVisibleCells().map((cell) => {
                   const columnDef = cell.column.columnDef;
                   const meta = columnDef.meta as ColumnMeta<TData, TValue> | undefined;
-                  const headerContent = typeof columnDef.header === "function"
-                                              ? flexRender(columnDef.header, cell.getContext())
-                                              : columnDef.header;
+// ✅ แก้ไข: ถ้า header เป็น function (เช่น มีปุ่ม sort) ให้ข้ามไปใช้ meta.headerLabel หรือ id แทน
+// เพื่อป้องกัน Error และไม่ให้ปุ่ม Sort ไปโผล่ใน Card View ของมือถือ
+const headerContent = typeof columnDef.header === "string" ? columnDef.header : null;
 
                   const headerLabel = meta?.headerLabel || (typeof headerContent === 'string' ? headerContent : columnDef.id || "ข้อมูล");
 

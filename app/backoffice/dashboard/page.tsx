@@ -117,7 +117,7 @@ export default function Dashboard() {
   const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
-      const headers: Record<string, string> = { "Cache-Control": "no-store", ...authHeader() };
+      const headers = { "Cache-Control": "no-store", ...authHeader() };
 
       // ดึงให้เยอะหน่อยในช่วงเพื่อสรุปสถิติ (รองรับ backend ที่รองรับ page/pageSize)
       const { data } = await axios.get(`${config.apiUrl}/orders`, {

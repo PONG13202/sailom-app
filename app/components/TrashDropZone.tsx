@@ -6,15 +6,17 @@ import { Trash2 } from "lucide-react";
 type DragItem = { id: string };
 
 export function TrashDropZone({ onDrop }: { onDrop: (id: string) => void }) {
-  const [{ isOver }, drop] = useDrop<DragItem>(() => ({
+  // ✅ แก้ไขตรงนี้: ระบุ Generic Type <DragItem, unknown, { isOver: boolean }>
+  const [{ isOver }, drop] = useDrop<DragItem, unknown, { isOver: boolean }>(() => ({
     accept: "TABLE_CARD",
     drop: (item) => onDrop(item.id),
-    collect: (monitor) => ({ isOver: monitor.isOver() }),
+    collect: (monitor) => ({ isOver: !!monitor.isOver() }),
   }));
 
   return (
     <div
-      ref={drop}
+      // ✅ แก้ไขตรงนี้: cast as any เพื่อป้องกัน ref type error
+      ref={drop as any}
       className={[
         "absolute bottom-3 right-3",
         "rounded-full border shadow-md z-50 select-none",
