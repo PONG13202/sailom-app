@@ -1,0 +1,63 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+/* โหลดฟ้อนก่อน Tailwind */
+@import url('https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&display=swap');
+
+/* Tailwind directives */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ตั้ง class ใช้ฟ้อน Prompt */
+.font-prompt {
+  font-family: 'Prompt', sans-serif;
+}
+
+/* กำหนดพื้นฐาน body */
+body {
+  background-color: white;
+  color: #1a202c; /* เทียบเท่า text-gray-900 */
+  font-family: 'Prompt', sans-serif;
+}
+/* sailom\app\globals.css */
+@media (max-width: 640px) {
+  .responsive-table {
+    display: block;
+  }
+  .responsive-table table {
+    display: block;
+  }
+  .responsive-table thead {
+    display: none; /* Hide headers on mobile */
+  }
+  .responsive-table tbody,
+  .responsive-table tr {
+    display: block;
+  }
+  .responsive-table tr {
+    border: 1px solid #e5e7eb;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    background: #fff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  .responsive-table td {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border: none;
+  }
+  .responsive-table td::before {
+    content: attr(data-label);
+    font-weight: bold;
+    width: 50%;
+  }
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE, Edge */
+  scrollbar-width: none;     /* Firefox */
+}
